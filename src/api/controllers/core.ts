@@ -661,6 +661,7 @@ export function checkResult(result: AxiosResponse) {
  * @param authorization 认证字符串
  */
 export function tokenSplit(authorization: string) {
+  if (!/^Bearer\s+/i.test(authorization)) return [];
   return authorization
     .replace(/^Bearer\s+/i, "")
     .split(",")

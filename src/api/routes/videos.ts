@@ -134,8 +134,15 @@ export default {
                 }
             }
 
-            const token = sessionPool.pickTokenFromAuthorization(request.headers.authorization);
+            const tokenPick = sessionPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
+            const token = tokenPick.token;
             if (!token) {
+                if (tokenPick.error === "invalid_authorization_format") {
+                    throw new Error("Authorization 格式无效。请使用: Authorization: Bearer <token1[,token2,...]>");
+                }
+                if (tokenPick.error === "empty_authorization_tokens") {
+                    throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
+                }
                 throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
             }
 

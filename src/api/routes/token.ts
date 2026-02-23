@@ -11,11 +11,21 @@ function parseBodyTokens(tokens: any): string[] {
     return [];
 }
 
-function resolveTokens(authorization?: string): string[] {
+function resolveTokens(authorization?: string): { tokens: string[]; error: string | null } {
     if (_.isString(authorization) && authorization.trim().length > 0) {
-        return tokenSplit(authorization);
+        if (!/^Bearer\s+/i.test(authorization)) {
+            return { tokens: [], error: "invalid_authorization_format" };
+        }
+        const tokens = tokenSplit(authorization);
+        if (tokens.length === 0) {
+            return { tokens: [], error: "empty_authorization_tokens" };
+        }
+        return { tokens, error: null };
     }
-    return sessionPool.getAllTokens({ onlyEnabled: true, preferLive: true });
+    return {
+        tokens: sessionPool.getAllTokens({ onlyEnabled: true, preferLive: true }),
+        error: null
+    };
 }
 
 export default {
@@ -45,7 +55,13 @@ export default {
         },
 
         '/points': async (request: Request) => {
-            const tokens = resolveTokens(request.headers.authorization);
+            const { tokens, error } = resolveTokens(request.headers.authorization);
+            if (error === "invalid_authorization_format") {
+                throw new Error("Authorization 格式无效。请使用: Authorization: Bearer <token1[,token2,...]>");
+            }
+            if (error === "empty_authorization_tokens") {
+                throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
+            }
             if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
             const points = await Promise.all(tokens.map(async (token) => {
                 return {
@@ -57,7 +73,13 @@ export default {
         },
 
         '/receive': async (request: Request) => {
-            const tokens = resolveTokens(request.headers.authorization);
+            const { tokens, error } = resolveTokens(request.headers.authorization);
+            if (error === "invalid_authorization_format") {
+                throw new Error("Authorization 格式无效。请使用: Authorization: Bearer <token1[,token2,...]>");
+            }
+            if (error === "empty_authorization_tokens") {
+                throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
+            }
             if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
             const credits = await Promise.all(tokens.map(async (token) => {
                 const currentCredit = await getCredit(token);

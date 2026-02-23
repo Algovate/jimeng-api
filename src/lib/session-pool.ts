@@ -21,6 +21,12 @@ interface SessionPoolFile {
 }
 
 type PickStrategy = "random" | "round_robin";
+export type AuthorizationTokenError = "invalid_authorization_format" | "empty_authorization_tokens";
+
+export interface AuthorizationTokenPickResult {
+  token: string | null;
+  error: AuthorizationTokenError | null;
+}
 
 class SessionPool {
   private readonly enabled: boolean;
@@ -110,15 +116,26 @@ class SessionPool {
   }
 
   pickTokenFromAuthorization(authorization?: string): string | null {
-    if (_.isString(authorization) && authorization.trim().length > 0) {
+    return this.pickTokenFromAuthorizationDetailed(authorization).token;
+  }
+
+  pickTokenFromAuthorizationDetailed(authorization?: string): AuthorizationTokenPickResult {
+    if (_.isString(authorization)) {
+      if (authorization.trim().length === 0) return { token: this.pickToken(), error: null };
+      if (!/^Bearer\s+/i.test(authorization)) {
+        return { token: null, error: "invalid_authorization_format" };
+      }
       const tokens = authorization
         .replace(/^Bearer\s+/i, "")
         .split(",")
         .map((token) => token.trim())
         .filter(Boolean);
-      if (tokens.length > 0) return _.sample(tokens) || null;
+      if (tokens.length === 0) {
+        return { token: null, error: "empty_authorization_tokens" };
+      }
+      return { token: _.sample(tokens) || null, error: null };
     }
-    return this.pickToken();
+    return { token: this.pickToken(), error: null };
   }
 
   pickToken(): string | null {
