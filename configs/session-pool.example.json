@@ -1,0 +1,23 @@
+{
+  "updatedAt": 0,
+  "tokens": [
+    {
+      "token": "us-your_sessionid_1",
+      "enabled": true,
+      "live": true,
+      "lastCheckedAt": 0,
+      "lastError": "",
+      "lastCredit": 0,
+      "consecutiveFailures": 0
+    },
+    {
+      "token": "your_cn_sessionid_2",
+      "enabled": true,
+      "live": true,
+      "lastCheckedAt": 0,
+      "lastError": "",
+      "lastCredit": 0,
+      "consecutiveFailures": 0
+    }
+  ]
+}

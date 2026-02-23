@@ -1,10 +1,9 @@
 import _ from 'lodash';
 
 import Request from '@/lib/request/Request.ts';
-import Response from '@/lib/response/Response.ts';
-import { tokenSplit } from '@/api/controllers/core.ts';
 import { generateVideo, DEFAULT_MODEL } from '@/api/controllers/videos.ts';
 import util from '@/lib/util.ts';
+import sessionPool from '@/lib/session-pool.ts';
 
 export default {
 
@@ -22,8 +21,7 @@ export default {
                 .validate('body.ratio', v => _.isUndefined(v) || _.isString(v))
                 .validate('body.resolution', v => _.isUndefined(v) || _.isString(v))
                 .validate('body.functionMode', v => _.isUndefined(v) || (_.isString(v) && ['first_last_frames', 'omni_reference'].includes(v)))
-                .validate('body.response_format', v => _.isUndefined(v) || _.isString(v))
-                .validate('headers.authorization', _.isString);
+                .validate('body.response_format', v => _.isUndefined(v) || _.isString(v));
 
             const functionMode = request.body.functionMode || 'first_last_frames';
             const isOmniMode = functionMode === 'omni_reference';
@@ -136,10 +134,10 @@ export default {
                 }
             }
 
-            // refresh_token切分
-            const tokens = tokenSplit(request.headers.authorization);
-            // 随机挑选一个refresh_token
-            const token = _.sample(tokens);
+            const token = sessionPool.pickTokenFromAuthorization(request.headers.authorization);
+            if (!token) {
+                throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+            }
 
             const {
                 model = DEFAULT_MODEL,

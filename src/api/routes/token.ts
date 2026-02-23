@@ -3,10 +3,35 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import { getTokenLiveStatus, getCredit, receiveCredit, tokenSplit } from '@/api/controllers/core.ts';
 import logger from '@/lib/logger.ts';
+import sessionPool from '@/lib/session-pool.ts';
+
+function parseBodyTokens(tokens: any): string[] {
+    if (_.isString(tokens)) return tokens.split(",").map((item) => item.trim()).filter(Boolean);
+    if (_.isArray(tokens)) return tokens.map((item) => String(item).trim()).filter(Boolean);
+    return [];
+}
+
+function resolveTokens(authorization?: string): string[] {
+    if (_.isString(authorization) && authorization.trim().length > 0) {
+        return tokenSplit(authorization);
+    }
+    return sessionPool.getAllTokens({ onlyEnabled: true, preferLive: true });
+}
 
 export default {
 
     prefix: '/token',
+
+    get: {
+
+        '/pool': async () => {
+            return {
+                summary: sessionPool.getSummary(),
+                items: sessionPool.getEntries(true)
+            }
+        }
+
+    },
 
     post: {
 
@@ -20,10 +45,8 @@ export default {
         },
 
         '/points': async (request: Request) => {
-            request
-                .validate('headers.authorization', _.isString)
-            // refresh_token切分
-            const tokens = tokenSplit(request.headers.authorization);
+            const tokens = resolveTokens(request.headers.authorization);
+            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
             const points = await Promise.all(tokens.map(async (token) => {
                 return {
                     token,
@@ -34,10 +57,8 @@ export default {
         },
 
         '/receive': async (request: Request) => {
-            request
-                .validate('headers.authorization', _.isString)
-            // refresh_token切分
-            const tokens = tokenSplit(request.headers.authorization);
+            const tokens = resolveTokens(request.headers.authorization);
+            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
             const credits = await Promise.all(tokens.map(async (token) => {
                 const currentCredit = await getCredit(token);
                 if (currentCredit.totalCredit <= 0) {
@@ -66,6 +87,61 @@ export default {
                 }
             }))
             return credits;
+        },
+
+        '/pool/add': async (request: Request) => {
+            const tokens = parseBodyTokens(request.body.tokens);
+            if (tokens.length === 0) throw new Error("body.tokens 不能为空，支持 string 或 string[]");
+            const result = await sessionPool.addTokens(tokens);
+            return {
+                ...result,
+                summary: sessionPool.getSummary()
+            };
+        },
+
+        '/pool/remove': async (request: Request) => {
+            const tokens = parseBodyTokens(request.body.tokens);
+            if (tokens.length === 0) throw new Error("body.tokens 不能为空，支持 string 或 string[]");
+            const result = await sessionPool.removeTokens(tokens);
+            return {
+                ...result,
+                summary: sessionPool.getSummary()
+            };
+        },
+
+        '/pool/enable': async (request: Request) => {
+            request.validate('body.token', _.isString);
+            const updated = await sessionPool.setTokenEnabled(request.body.token, true);
+            return {
+                updated,
+                summary: sessionPool.getSummary()
+            };
+        },
+
+        '/pool/disable': async (request: Request) => {
+            request.validate('body.token', _.isString);
+            const updated = await sessionPool.setTokenEnabled(request.body.token, false);
+            return {
+                updated,
+                summary: sessionPool.getSummary()
+            };
+        },
+
+        '/pool/check': async () => {
+            const result = await sessionPool.runHealthCheck();
+            return {
+                ...result,
+                summary: sessionPool.getSummary()
+            };
+        },
+
+        '/pool/reload': async () => {
+            await sessionPool.reloadFromDisk();
+            return {
+                reloaded: true,
+                summary: sessionPool.getSummary(),
+                items: sessionPool.getEntries(true)
+            };
         }
 
     }

@@ -643,6 +643,18 @@ curl -X POST http://localhost:5100/token/receive \
 }
 ```
 
+**快速批量检查脚本**:
+```bash
+# 方式1：直接传多个token
+npm run token:check -- token1 token2 token3
+
+# 方式2：从文件读取（每行一个token，支持#注释）
+npm run token:check -- --file ./tokens.txt
+
+# 方式3：指定服务地址
+npm run token:check -- --url http://127.0.0.1:5100 token1
+```
+
 #### 获取积分信息
 
 **POST** `/token/points`
@@ -709,6 +721,45 @@ curl -X POST http://localhost:5100/token/receive \
 curl -X POST http://localhost:5100/token/receive \
   -H "Authorization: Bearer TOKEN1,TOKEN2,TOKEN3"
 ```
+
+#### Session Pool（多 sessionid 池）
+
+服务内置 session pool，支持文件持久化、定时探活、自动禁用失效 token。
+
+- 默认池文件：`configs/session-pool.json`（首次启动自动创建）
+- 示例文件：`configs/session-pool.example.json`
+- 图片/视频接口：有 `Authorization` 时优先用请求头；无 `Authorization` 时自动从 pool 选 token
+- `POST /token/points`、`POST /token/receive`：无 `Authorization` 时自动作用于 pool 中可用 token
+
+**Pool 管理接口**:
+
+```bash
+# 查看 pool 状态（token 已脱敏）
+curl http://localhost:5100/token/pool
+
+# 添加 token（支持 string 或 string[]）
+curl -X POST http://localhost:5100/token/pool/add \
+  -H "Content-Type: application/json" \
+  -d '{"tokens":["us-token1","token2"]}'
+
+# 移除 token
+curl -X POST http://localhost:5100/token/pool/remove \
+  -H "Content-Type: application/json" \
+  -d '{"tokens":"us-token1,token2"}'
+
+# 立即执行健康检查
+curl -X POST http://localhost:5100/token/pool/check
+```
+
+**可选环境变量**:
+
+- `SESSION_POOL_ENABLED=true|false`（默认 `true`）
+- `SESSION_POOL_FILE=configs/session-pool.json`
+- `SESSION_POOL_HEALTHCHECK_INTERVAL_MS=600000`
+- `SESSION_POOL_STRATEGY=random|round_robin`
+- `SESSION_POOL_AUTO_DISABLE=true|false`（默认 `true`）
+- `SESSION_POOL_AUTO_DISABLE_FAILURES=2`
+- `SESSION_POOL_FETCH_CREDIT=true|false`（默认 `false`）
 
 ## 🔍 API响应格式
 

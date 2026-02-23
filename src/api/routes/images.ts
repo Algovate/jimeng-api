@@ -4,8 +4,8 @@ import _ from "lodash";
 import Request from "@/lib/request/Request.ts";
 import { generateImages, generateImageComposition } from "@/api/controllers/images.ts";
 import { DEFAULT_IMAGE_MODEL } from "@/api/consts/common.ts";
-import { tokenSplit } from "@/api/controllers/core.ts";
 import util from "@/lib/util.ts";
+import sessionPool from "@/lib/session-pool.ts";
 
 export default {
   prefix: "/v1/images",
@@ -28,11 +28,12 @@ export default {
         .validate("body.resolution", v => _.isUndefined(v) || _.isString(v))
         .validate("body.intelligent_ratio", v => _.isUndefined(v) || _.isBoolean(v))
         .validate("body.sample_strength", v => _.isUndefined(v) || _.isFinite(v))
-        .validate("body.response_format", v => _.isUndefined(v) || _.isString(v))
-        .validate("headers.authorization", _.isString);
+        .validate("body.response_format", v => _.isUndefined(v) || _.isString(v));
 
-      const tokens = tokenSplit(request.headers.authorization);
-      const token = _.sample(tokens);
+      const token = sessionPool.pickTokenFromAuthorization(request.headers.authorization);
+      if (!token) {
+        throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+      }
       const {
         model,
         prompt,
@@ -90,8 +91,7 @@ export default {
           .validate("body.resolution", v => _.isUndefined(v) || _.isString(v))
           .validate("body.intelligent_ratio", v => _.isUndefined(v) || (typeof v === 'string' && (v === 'true' || v === 'false')) || _.isBoolean(v))
           .validate("body.sample_strength", v => _.isUndefined(v) || (typeof v === 'string' && !isNaN(parseFloat(v))) || _.isFinite(v))
-          .validate("body.response_format", v => _.isUndefined(v) || _.isString(v))
-          .validate("headers.authorization", _.isString);
+          .validate("body.response_format", v => _.isUndefined(v) || _.isString(v));
       } else {
         request
           .validate("body.model", v => _.isUndefined(v) || _.isString(v))
@@ -102,8 +102,7 @@ export default {
           .validate("body.resolution", v => _.isUndefined(v) || _.isString(v))
           .validate("body.intelligent_ratio", v => _.isUndefined(v) || _.isBoolean(v))
           .validate("body.sample_strength", v => _.isUndefined(v) || _.isFinite(v))
-          .validate("body.response_format", v => _.isUndefined(v) || _.isString(v))
-          .validate("headers.authorization", _.isString);
+          .validate("body.response_format", v => _.isUndefined(v) || _.isString(v));
       }
 
       let images: (string | Buffer)[] = [];
@@ -139,8 +138,10 @@ export default {
         images = bodyImages.map((image: any) => _.isString(image) ? image : image.url);
       }
 
-      const tokens = tokenSplit(request.headers.authorization);
-      const token = _.sample(tokens);
+      const token = sessionPool.pickTokenFromAuthorization(request.headers.authorization);
+      if (!token) {
+        throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+      }
 
       const {
         model,

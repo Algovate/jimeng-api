@@ -612,6 +612,18 @@ Check if a token is valid and active.
 }
 ```
 
+**Quick batch check script**:
+```bash
+# Option 1: pass multiple tokens directly
+npm run token:check -- token1 token2 token3
+
+# Option 2: read from file (one token per line, supports # comments)
+npm run token:check -- --file ./tokens.txt
+
+# Option 3: specify API base URL
+npm run token:check -- --url http://127.0.0.1:5100 token1
+```
+
 #### Get Credit Points
 
 **POST** `/token/points`
@@ -678,6 +690,45 @@ curl -X POST http://localhost:5100/token/receive \
 curl -X POST http://localhost:5100/token/receive \
   -H "Authorization: Bearer TOKEN1,TOKEN2,TOKEN3"
 ```
+
+#### Session Pool (Multiple sessionids)
+
+Built-in session pool supports file persistence, scheduled health checks, and auto-disable for invalid tokens.
+
+- Default pool file: `configs/session-pool.json` (auto-created on first startup)
+- Example file: `configs/session-pool.example.json`
+- Image/Video APIs: if `Authorization` exists, use request header first; if missing, auto-pick from pool
+- `POST /token/points` and `POST /token/receive`: if `Authorization` is missing, they run against available pool tokens
+
+**Pool management endpoints**:
+
+```bash
+# View pool status (tokens are masked)
+curl http://localhost:5100/token/pool
+
+# Add tokens (supports string or string[])
+curl -X POST http://localhost:5100/token/pool/add \
+  -H "Content-Type: application/json" \
+  -d '{"tokens":["us-token1","token2"]}'
+
+# Remove tokens
+curl -X POST http://localhost:5100/token/pool/remove \
+  -H "Content-Type: application/json" \
+  -d '{"tokens":"us-token1,token2"}'
+
+# Run health check immediately
+curl -X POST http://localhost:5100/token/pool/check
+```
+
+**Optional env vars**:
+
+- `SESSION_POOL_ENABLED=true|false` (default `true`)
+- `SESSION_POOL_FILE=configs/session-pool.json`
+- `SESSION_POOL_HEALTHCHECK_INTERVAL_MS=600000`
+- `SESSION_POOL_STRATEGY=random|round_robin`
+- `SESSION_POOL_AUTO_DISABLE=true|false` (default `true`)
+- `SESSION_POOL_AUTO_DISABLE_FAILURES=2`
+- `SESSION_POOL_FETCH_CREDIT=true|false` (default `false`)
 
 ## 🔍 API Response Format
 

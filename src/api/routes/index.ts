@@ -19,6 +19,7 @@ export default [
                         images: '/v1/images/generations',
                         compositions: '/v1/images/compositions',
                         videos: '/v1/videos/generations',
+                        tokenPool: '/token/pool',
                         models: '/v1/models',
                         health: '/ping'
                     }

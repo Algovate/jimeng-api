@@ -164,11 +164,16 @@ export function generateCookie(refreshToken: string) {
   const token = (isUS || isHK || isJP || isSG)
     ? tokenWithRegion.substring(3)
     : tokenWithRegion;
+  const sidGuardTtl = 5184000;
+  const sidGuardIssuedAt = util.unixTimestamp();
+  const sidGuardExpireAt = encodeURIComponent(
+    new Date((sidGuardIssuedAt + sidGuardTtl) * 1000).toUTCString()
+  ).replace(/%20/g, "+");
 
   return [
     `_tea_web_id=${WEB_ID}`,
     `is_staff_user=false`,
-    `sid_guard=${token}%7C${util.unixTimestamp()}%7C5184000%7CMon%2C+03-Feb-2025+08%3A17%3A09+GMT`,
+    `sid_guard=${token}%7C${sidGuardIssuedAt}%7C${sidGuardTtl}%7C${sidGuardExpireAt}`,
     `uid_tt=${USER_ID}`,
     `uid_tt_ss=${USER_ID}`,
     `sid_tt=${token}`,
@@ -211,10 +216,20 @@ export async function getCredit(refreshToken: string) {
 export async function receiveCredit(refreshToken: string) {
   logger.info("正在尝试收取今日积分...")
   const referer = getRefererByRegion(refreshToken, "/ai-tool/home");
+  const regionInfo = parseRegionFromToken(refreshToken);
+  const timeZone = regionInfo.isUS
+    ? "America/New_York"
+    : regionInfo.isHK
+      ? "Asia/Hong_Kong"
+      : regionInfo.isJP
+        ? "Asia/Tokyo"
+        : regionInfo.isSG
+          ? "Asia/Singapore"
+          : "Asia/Shanghai";
 
   const { receive_quota } = await request("POST", "/commerce/v1/benefits/credit_receive", refreshToken, {
     data: {
-      time_zone: "Asia/Shanghai"
+      time_zone: timeZone
     },
     headers: {
       Referer: referer
@@ -646,7 +661,11 @@ export function checkResult(result: AxiosResponse) {
  * @param authorization 认证字符串
  */
 export function tokenSplit(authorization: string) {
-  return authorization.replace("Bearer ", "").split(",");
+  return authorization
+    .replace(/^Bearer\s+/i, "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
 }
 
 /**
