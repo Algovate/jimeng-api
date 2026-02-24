@@ -10,3 +10,8 @@ export interface ToolDeps {
   config: McpConfig;
   client: JimengApiClient;
 }
+
+export interface MultipartUploadFile {
+  fieldName: string;
+  filePath: string;
+}

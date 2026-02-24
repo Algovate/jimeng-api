@@ -220,7 +220,7 @@ npm run mcp:start
 - `JIMENG_API_BASE_URL` (default: `http://127.0.0.1:5100`)
 - `JIMENG_API_TOKEN` (optional default bearer token)
 - `MCP_HTTP_TIMEOUT_MS` (default: `120000`)
-- `MCP_ENABLE_ADVANCED_TOOLS` (default: `true`, controls `edit_image` and `generate_video`)
+- `MCP_ENABLE_ADVANCED_TOOLS` (default: `true`, controls `edit_image`, `generate_video_flf`, and `generate_video_omni`)
 - `MCP_REQUIRE_RUN_CONFIRM` (default: `true`, generation tools require `confirm: "RUN"`)
 
 #### Exposed MCP tools
@@ -229,7 +229,8 @@ npm run mcp:start
 - `list_models`
 - `generate_image`
 - `edit_image` (URL inputs only in current phase)
-- `generate_video` (`first_last_frames` mode only in current phase)
+- `generate_video_flf` (`first_last_frames` mode only)
+- `generate_video_omni` (`omni_reference` mode, supports URL and local file materials)
 
 #### Cursor MCP example
 

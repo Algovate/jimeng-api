@@ -1,7 +1,10 @@
 import axios, { type AxiosInstance } from "axios";
+import fs from "node:fs";
+import path from "node:path";
+import FormData from "form-data";
 
 import type { McpConfig } from "./config.ts";
-import type { JsonObject } from "./types.ts";
+import type { JsonObject, MultipartUploadFile } from "./types.ts";
 
 export interface McpRequestOptions {
   token?: string;
@@ -62,5 +65,40 @@ export class JimengApiClient {
 
   async generateVideo(body: Record<string, unknown>, options?: McpRequestOptions): Promise<any> {
     return this.request("POST", "/v1/videos/generations", options, body);
+  }
+
+  async generateVideoOmni(
+    body: JsonObject,
+    options?: McpRequestOptions,
+    uploadFiles: MultipartUploadFile[] = []
+  ): Promise<any> {
+    if (uploadFiles.length === 0) {
+      return this.request("POST", "/v1/videos/generations", options, body);
+    }
+
+    const form = new FormData();
+    for (const [key, value] of Object.entries(body)) {
+      if (value == null) continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item != null) form.append(key, String(item));
+        }
+        continue;
+      }
+      form.append(key, String(value));
+    }
+
+    for (const file of uploadFiles) {
+      form.append(file.fieldName, fs.createReadStream(file.filePath), {
+        filename: path.basename(file.filePath)
+      });
+    }
+
+    const headers = {
+      ...this.buildHeaders(options),
+      ...form.getHeaders()
+    };
+    const { data } = await this.http.post("/v1/videos/generations", form, { headers });
+    return data;
   }
 }

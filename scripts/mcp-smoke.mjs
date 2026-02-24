@@ -4,7 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const REQUIRED_TOOLS = ["health_check", "list_models", "generate_image"];
-const ADVANCED_TOOLS = ["edit_image", "generate_video"];
+const ADVANCED_TOOLS = ["edit_image", "generate_video_flf", "generate_video_omni"];
 const STRICT = process.argv.includes("--strict");
 
 function assert(condition, message) {
@@ -68,6 +68,14 @@ async function main() {
         }
       });
       assert(guardedResult.isError, "Expected confirm guard to block generate_image");
+
+      const guardedOmniResult = await client.callTool({
+        name: "generate_video_omni",
+        arguments: {
+          prompt: "smoke guard test"
+        }
+      });
+      assert(guardedOmniResult.isError, "Expected confirm guard to block generate_video_omni");
     }
 
     console.log("MCP smoke checks passed.");

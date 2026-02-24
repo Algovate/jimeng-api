@@ -1,6 +1,7 @@
 import type { ToolDeps } from "../types.ts";
 import { registerEditImageTool } from "./edit-image.ts";
 import { registerGenerateImageTool } from "./generate-image.ts";
+import { registerGenerateVideoOmniTool } from "./generate-video-omni.ts";
 import { registerGenerateVideoTool } from "./generate-video.ts";
 import { registerHealthCheckTool } from "./health-check.ts";
 import { registerListModelsTool } from "./list-models.ts";
@@ -16,5 +17,6 @@ export const MCP_TOOL_MANIFEST: McpToolManifestItem[] = [
   { id: "list_models", register: registerListModelsTool },
   { id: "generate_image", register: registerGenerateImageTool },
   { id: "edit_image", isAdvanced: true, register: registerEditImageTool },
-  { id: "generate_video", isAdvanced: true, register: registerGenerateVideoTool }
+  { id: "generate_video_flf", isAdvanced: true, register: registerGenerateVideoTool },
+  { id: "generate_video_omni", isAdvanced: true, register: registerGenerateVideoOmniTool }
 ];

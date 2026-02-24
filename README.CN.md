@@ -223,7 +223,7 @@ npm run mcp:start
 - `JIMENG_API_BASE_URL`（默认：`http://127.0.0.1:5100`）
 - `JIMENG_API_TOKEN`（可选，默认 Bearer token）
 - `MCP_HTTP_TIMEOUT_MS`（默认：`120000`）
-- `MCP_ENABLE_ADVANCED_TOOLS`（默认：`true`，控制 `edit_image` 和 `generate_video`）
+- `MCP_ENABLE_ADVANCED_TOOLS`（默认：`true`，控制 `edit_image`、`generate_video_flf` 和 `generate_video_omni`）
 - `MCP_REQUIRE_RUN_CONFIRM`（默认：`true`，生成类工具需 `confirm: "RUN"`）
 
 #### MCP 工具列表
@@ -232,7 +232,8 @@ npm run mcp:start
 - `list_models`
 - `generate_image`
 - `edit_image`（当前阶段仅支持 URL 输入）
-- `generate_video`（当前阶段仅支持 `first_last_frames` 模式）
+- `generate_video_flf`（仅支持 `first_last_frames` 模式）
+- `generate_video_omni`（`omni_reference` 模式，支持 URL 与本地文件素材）
 
 #### Cursor MCP 配置示例
 
