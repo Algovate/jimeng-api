@@ -684,9 +684,19 @@ export async function getTokenLiveStatus(refreshToken: string) {
         },
       }
     );
+    const resultObj = (result && typeof result === "object") ? result : {};
+    const nestedData = (resultObj as Record<string, unknown>).data;
+    const nestedDataObj = (nestedData && typeof nestedData === "object")
+      ? (nestedData as Record<string, unknown>)
+      : {};
+    const hasUserId = Boolean((resultObj as Record<string, unknown>).user_id);
+    const hasAppId = Boolean((resultObj as Record<string, unknown>).app_id);
+    const hasNestedUserId = Boolean(nestedDataObj.user_id);
+    const hasNestedAppId = Boolean(nestedDataObj.app_id);
     // request 内部已调用 checkResult，直接使用返回值
-    return !!result?.user_id;
-  } catch (err) {
+    const live = hasUserId || hasNestedUserId || hasAppId || hasNestedAppId;
+    return live;
+  } catch {
     return false;
   }
 }

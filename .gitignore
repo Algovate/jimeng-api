@@ -57,6 +57,4 @@ tmp/
 temp/
 jimeng-*.md
 configs/session-pool.json
-scripts/*
-!scripts/check-token.sh
 .ace-tool/

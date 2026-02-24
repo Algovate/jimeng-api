@@ -655,6 +655,46 @@ npm run token:check -- --file ./tokens.txt
 npm run token:check -- --url http://127.0.0.1:5100 token1
 ```
 
+#### 图像/视频测试脚本（TypeScript）
+
+新增两个独立测试脚本，分别用于图生图与图生视频验证（并自动下载生成结果）：
+
+- `scripts/test-image-generation.ts`：仅测试图生图（`/v1/images/compositions`）
+- `scripts/test-video-generation.ts`：仅测试图生视频（`/v1/videos/generations`，支持首帧/尾帧）
+
+**示例命令**（可使用 `tsx` 或支持 TypeScript 的 Node 运行方式）：
+```bash
+# 零参数快速测试（自动读取 token + 自动使用 fixtures 图片）
+tsx scripts/test-image-generation.ts
+tsx scripts/test-video-generation.ts
+
+# 图生图测试（下载图片到 ./pic/test-image）
+tsx scripts/test-image-generation.ts \
+  --token "YOUR_SESSION_ID" \
+  --prompt "把这张图变成赛博朋克夜景风格" \
+  --image "./scripts/fixtures/sample-input-image.png"
+
+# 图生视频测试（下载视频到 ./pic/test-video）
+tsx scripts/test-video-generation.ts \
+  --token "YOUR_SESSION_ID" \
+  --prompt "人物从静止到微笑并轻微转头" \
+  --image "./scripts/fixtures/sample-input-image.png"
+```
+
+**Token 自动来源优先级**：
+- 1) `--token`
+- 2) 环境变量 `TEST_SESSION_ID`
+- 3) `configs/session-pool.json` 的第一个 token
+
+**默认 fixtures**：
+- `./scripts/fixtures/sample-input-image.png`（不存在时会由 `sample-input-image.png.base64` 自动生成）
+
+**常用可选参数**：
+- `--url`：API 地址（默认 `http://127.0.0.1:5100`）
+- `--model`：模型名称
+- `--output-dir`：输出目录
+- 图生视频额外支持：`--image2`（尾帧）、`--duration`、`--ratio`、`--resolution`
+
 #### 获取积分信息
 
 **POST** `/token/points`
