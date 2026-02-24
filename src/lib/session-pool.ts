@@ -5,7 +5,7 @@ import _ from "lodash";
 import logger from "@/lib/logger.ts";
 import { getCredit, getTokenLiveStatus } from "@/api/controllers/core.ts";
 
-export interface SessionPoolEntry {
+export interface TokenPoolEntry {
   token: string;
   enabled: boolean;
   live?: boolean;
@@ -15,9 +15,9 @@ export interface SessionPoolEntry {
   consecutiveFailures: number;
 }
 
-interface SessionPoolFile {
+interface TokenPoolFile {
   updatedAt: number;
-  tokens: SessionPoolEntry[];
+  tokens: TokenPoolEntry[];
 }
 
 type PickStrategy = "random" | "round_robin";
@@ -28,7 +28,7 @@ export interface AuthorizationTokenPickResult {
   error: AuthorizationTokenError | null;
 }
 
-class SessionPool {
+class TokenPool {
   private readonly enabled: boolean;
   private readonly filePath: string;
   private readonly healthCheckIntervalMs: number;
@@ -37,7 +37,7 @@ class SessionPool {
   private readonly autoDisableFailures: number;
   private readonly pickStrategy: PickStrategy;
 
-  private readonly entryMap = new Map<string, SessionPoolEntry>();
+  private readonly entryMap = new Map<string, TokenPoolEntry>();
   private initialized = false;
   private healthChecking = false;
   private lastHealthCheckAt = 0;
@@ -45,20 +45,20 @@ class SessionPool {
   private roundRobinCursor = 0;
 
   constructor() {
-    this.enabled = process.env.SESSION_POOL_ENABLED !== "false";
+    this.enabled = process.env.TOKEN_POOL_ENABLED !== "false";
     this.filePath = path.resolve(
-      process.env.SESSION_POOL_FILE || "configs/session-pool.json"
+      process.env.TOKEN_POOL_FILE || "configs/token-pool.json"
     );
     this.healthCheckIntervalMs = Number(
-      process.env.SESSION_POOL_HEALTHCHECK_INTERVAL_MS || 10 * 60 * 1000
+      process.env.TOKEN_POOL_HEALTHCHECK_INTERVAL_MS || 10 * 60 * 1000
     );
-    this.fetchCreditOnCheck = process.env.SESSION_POOL_FETCH_CREDIT === "true";
-    this.autoDisableEnabled = process.env.SESSION_POOL_AUTO_DISABLE !== "false";
+    this.fetchCreditOnCheck = process.env.TOKEN_POOL_FETCH_CREDIT === "true";
+    this.autoDisableEnabled = process.env.TOKEN_POOL_AUTO_DISABLE !== "false";
     this.autoDisableFailures = Math.max(
       1,
-      Number(process.env.SESSION_POOL_AUTO_DISABLE_FAILURES || 2)
+      Number(process.env.TOKEN_POOL_AUTO_DISABLE_FAILURES || 2)
     );
-    this.pickStrategy = process.env.SESSION_POOL_STRATEGY === "round_robin"
+    this.pickStrategy = process.env.TOKEN_POOL_STRATEGY === "round_robin"
       ? "round_robin"
       : "random";
   }
@@ -67,13 +67,13 @@ class SessionPool {
     if (this.initialized) return;
     this.initialized = true;
     if (!this.enabled) {
-      logger.info("Session pool disabled by SESSION_POOL_ENABLED=false");
+      logger.info("Token pool disabled by TOKEN_POOL_ENABLED=false");
       return;
     }
     await this.loadFromDisk();
     this.startHealthCheckLoop();
     logger.info(
-      `Session pool initialized: total=${this.entryMap.size}, file=${this.filePath}`
+      `Token pool initialized: total=${this.entryMap.size}, file=${this.filePath}`
     );
   }
 
@@ -96,7 +96,7 @@ class SessionPool {
     };
   }
 
-  getEntries(maskToken = true): SessionPoolEntry[] {
+  getEntries(maskToken = true): TokenPoolEntry[] {
     const items = Array.from(this.entryMap.values()).map((item) => ({ ...item }));
     if (!maskToken) return items;
     return items.map((item) => ({
@@ -169,7 +169,7 @@ class SessionPool {
     }
     if (added > 0) {
       await this.persistToDisk();
-      logger.info(`Session pool add tokens: added=${added}, total=${this.entryMap.size}`);
+      logger.info(`Token pool add tokens: added=${added}, total=${this.entryMap.size}`);
     }
     return { added, total: this.entryMap.size };
   }
@@ -183,7 +183,7 @@ class SessionPool {
     }
     if (removed > 0) {
       await this.persistToDisk();
-      logger.info(`Session pool remove tokens: removed=${removed}, total=${this.entryMap.size}`);
+      logger.info(`Token pool remove tokens: removed=${removed}, total=${this.entryMap.size}`);
     }
     return { removed, total: this.entryMap.size };
   }
@@ -264,7 +264,7 @@ class SessionPool {
       this.lastHealthCheckAt = Date.now();
       await this.persistToDisk();
       logger.info(
-        `Session pool health check done: checked=${checked}, live=${live}, invalid=${invalid}, disabled=${disabled}`
+        `Token pool health check done: checked=${checked}, live=${live}, invalid=${invalid}, disabled=${disabled}`
       );
       return { checked, live, invalid, disabled };
     } finally {
@@ -277,7 +277,7 @@ class SessionPool {
     if (this.healthCheckTimer) clearInterval(this.healthCheckTimer);
     this.healthCheckTimer = setInterval(() => {
       this.runHealthCheck().catch((err) => {
-        logger.warn(`Session pool health check failed: ${err?.message || String(err)}`);
+        logger.warn(`Token pool health check failed: ${err?.message || String(err)}`);
       });
     }, this.healthCheckIntervalMs);
     if (typeof this.healthCheckTimer.unref === "function") this.healthCheckTimer.unref();
@@ -289,15 +289,15 @@ class SessionPool {
       await this.persistToDisk();
       return;
     }
-    let data: SessionPoolFile | null = null;
+    let data: TokenPoolFile | null = null;
     try {
       data = await fs.readJson(this.filePath);
     } catch (err: any) {
-      logger.warn(`Session pool file parse failed, fallback to empty: ${err?.message || String(err)}`);
+      logger.warn(`Token pool file parse failed, fallback to empty: ${err?.message || String(err)}`);
       data = null;
     }
     const items = Array.isArray(data?.tokens) ? data!.tokens : [];
-    const nextMap = new Map<string, SessionPoolEntry>();
+    const nextMap = new Map<string, TokenPoolEntry>();
     for (const raw of items) {
       const token = String(raw?.token || "").trim();
       if (!token) continue;
@@ -317,7 +317,7 @@ class SessionPool {
 
   private async persistToDisk() {
     await fs.ensureDir(path.dirname(this.filePath));
-    const payload: SessionPoolFile = {
+    const payload: TokenPoolFile = {
       updatedAt: Date.now(),
       tokens: this.getEntries(false)
     };
@@ -330,4 +330,4 @@ class SessionPool {
   }
 }
 
-export default new SessionPool();
+export default new TokenPool();

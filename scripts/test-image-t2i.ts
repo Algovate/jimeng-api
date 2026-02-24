@@ -22,7 +22,7 @@ type ApiResponsePayload = {
   data?: Array<{ url?: string }>;
 };
 
-type SessionPoolData = {
+type TokenPoolData = {
   tokens?: unknown[];
 };
 
@@ -88,7 +88,7 @@ function usage(): string {
     "  tsx scripts/test-image-t2i.ts [options]",
     "",
     "Options:",
-    "  --token <session_token>    可选：优先级最高",
+    "  --token <token>            可选：优先级最高",
     "  --prompt <text>            默认: 测试文生图：一只橘猫坐在窗边，清晨阳光，写实风格",
     "  --url <base_url>          API 地址，默认 http://127.0.0.1:5100",
     "  --model <model>           默认 jimeng-4.5",
@@ -98,8 +98,8 @@ function usage(): string {
     "",
     "Token source priority:",
     "  1) --token",
-    "  2) TEST_SESSION_ID 环境变量",
-    "  3) configs/session-pool.json 的第一个 token",
+    "  2) TEST_TOKEN 环境变量",
+    "  3) configs/token-pool.json 的第一个 token",
   ].join("\n");
 }
 
@@ -115,13 +115,13 @@ async function pathExists(filePath: string): Promise<boolean> {
 async function resolveToken(cliToken?: string): Promise<string | undefined> {
   if (cliToken && cliToken.trim().length > 0) return cliToken.trim();
 
-  const fromEnv = process.env.TEST_SESSION_ID?.trim();
+  const fromEnv = process.env.TEST_TOKEN?.trim();
   if (fromEnv) return fromEnv;
 
-  const poolPath = path.resolve(PROJECT_ROOT, "configs/session-pool.json");
+  const poolPath = path.resolve(PROJECT_ROOT, "configs/token-pool.json");
   if (!(await pathExists(poolPath))) return undefined;
   const raw = await readFile(poolPath, "utf8");
-  const parsed = JSON.parse(raw) as SessionPoolData;
+  const parsed = JSON.parse(raw) as TokenPoolData;
   const first = Array.isArray(parsed.tokens)
     ? parsed.tokens.find((item): item is string => typeof item === "string" && item.trim().length > 0)
     : undefined;
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const token = await resolveToken(args.token);
   if (!token) {
-    throw new Error(`未找到可用 token。\n请使用 --token、设置 TEST_SESSION_ID，或在 configs/session-pool.json 写入 tokens。\n\n${usage()}`);
+    throw new Error(`未找到可用 token。\n请使用 --token、设置 TEST_TOKEN，或在 configs/token-pool.json 写入 tokens。\n\n${usage()}`);
   }
 
   const endpoint = `${args.url.replace(/\/$/, "")}/v1/images/generations`;

@@ -55,10 +55,10 @@ curl -X POST http://localhost:5100/v1/images/generations \
 
 ## 🚀 Quick Start
 
-### Getting `sessionid`
-- Getting your `sessionid` works the same way on both the China site (Jimeng) and international sites (Dreamina) — see the screenshot below.
+### Getting `token`
+- Getting your `token` works the same way on both the China site (Jimeng) and international sites (Dreamina) — see the screenshot below.
 > **Note 1**: The API endpoints are the same for the China site and international sites, but use different prefixes:
-> - **China site**: Use the `sessionid` directly, e.g., `Bearer your_session_id`
+> - **China site**: Use the token directly, e.g., `Bearer your_token`
 > - **US site**: Add **us-** prefix, e.g., `Bearer us-your_session_id`
 > - **Hong Kong site**: Add **hk-** prefix, e.g., `Bearer hk-your_session_id`
 > - **Japan site**: Add **jp-** prefix, e.g., `Bearer jp-your_session_id`
@@ -138,27 +138,29 @@ jimeng models list --json
 # Start service
 jimeng serve
 
-# Check session id(s)
-jimeng token check --session-id YOUR_SESSION_ID
+# Check token(s)
+jimeng token check --token YOUR_TOKEN
 
 # Text to image
 jimeng image generate \
-  --session-id YOUR_SESSION_ID \
   --prompt "A futuristic city night scene, cinematic, highly detailed" \
   --ratio "16:9" \
   --resolution "2k"
 
 # Image to image (local file)
 jimeng image edit \
-  --session-id YOUR_SESSION_ID \
   --prompt "Enhance details and keep subject unchanged" \
   --image ./input.png
 
 # Video generation
 jimeng video generate \
-  --session-id YOUR_SESSION_ID \
   --prompt "The character walks forward naturally" \
   --image ./first-frame.png
+
+# Optional: override server token-pool selection
+jimeng image generate \
+  --token YOUR_TOKEN \
+  --prompt "A futuristic city night scene, cinematic, highly detailed"
 ```
 
 `/v1/models` includes a `source` field:
@@ -261,7 +263,7 @@ pip install requests Pillow
 In Claude Code, simply use natural language:
 
 ```
-User: "my sessionid is xxxxx，Generate a 2K 16:9 image of a futuristic city at sunset using Jimeng"
+User: "my token is xxxxx，Generate a 2K 16:9 image of a futuristic city at sunset using Jimeng"
 
 Claude: [Automatically invokes the skill, generates images, and saves to /pic directory]
 ```
@@ -738,12 +740,12 @@ curl -X POST http://localhost:5100/token/receive \
   -H "Authorization: Bearer TOKEN1,TOKEN2,TOKEN3"
 ```
 
-#### Session Pool (Multiple sessionids)
+#### Token Pool (Multiple tokens)
 
-Built-in session pool supports file persistence, scheduled health checks, and auto-disable for invalid tokens.
+Built-in token pool supports file persistence, scheduled health checks, and auto-disable for invalid tokens.
 
-- Default pool file: `configs/session-pool.json` (auto-created on first startup)
-- Example file: `configs/session-pool.example.json`
+- Default pool file: `configs/token-pool.json` (auto-created on first startup)
+- Example file: `configs/token-pool.example.json`
 - Image/Video APIs: if `Authorization` exists, use request header first; if missing, auto-pick from pool
 - `POST /token/points` and `POST /token/receive`: if `Authorization` is missing, they run against available pool tokens
 
@@ -769,13 +771,13 @@ curl -X POST http://localhost:5100/token/pool/check
 
 **Optional env vars**:
 
-- `SESSION_POOL_ENABLED=true|false` (default `true`)
-- `SESSION_POOL_FILE=configs/session-pool.json`
-- `SESSION_POOL_HEALTHCHECK_INTERVAL_MS=600000`
-- `SESSION_POOL_STRATEGY=random|round_robin`
-- `SESSION_POOL_AUTO_DISABLE=true|false` (default `true`)
-- `SESSION_POOL_AUTO_DISABLE_FAILURES=2`
-- `SESSION_POOL_FETCH_CREDIT=true|false` (default `false`)
+- `TOKEN_POOL_ENABLED=true|false` (default `true`)
+- `TOKEN_POOL_FILE=configs/token-pool.json`
+- `TOKEN_POOL_HEALTHCHECK_INTERVAL_MS=600000`
+- `TOKEN_POOL_STRATEGY=random|round_robin`
+- `TOKEN_POOL_AUTO_DISABLE=true|false` (default `true`)
+- `TOKEN_POOL_AUTO_DISABLE_FAILURES=2`
+- `TOKEN_POOL_FETCH_CREDIT=true|false` (default `false`)
 
 ## 🔍 API Response Format
 
@@ -897,9 +899,9 @@ export const RETRY_CONFIG = {
     -   Make sure your request body is valid.
     -   The system will automatically fix common format issues.
 
-2.  **Invalid `sessionid`**
-    -   Get a fresh `sessionid` from the appropriate site.
-    -   Check if the `sessionid` format is correct.
+2.  **Invalid token**
+    -   Get a fresh token from the appropriate site.
+    -   Check if the token format is correct.
 
 3.  **Generation Timeout**
     -   Image generation: up to 15 minutes max (may queue during peak hours).

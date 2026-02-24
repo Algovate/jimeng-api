@@ -3,7 +3,7 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import { getTokenLiveStatus, getCredit, receiveCredit, tokenSplit } from '@/api/controllers/core.ts';
 import logger from '@/lib/logger.ts';
-import sessionPool from '@/lib/session-pool.ts';
+import tokenPool from '@/lib/session-pool.ts';
 
 function parseBodyTokens(tokens: any): string[] {
     if (_.isString(tokens)) return tokens.split(",").map((item) => item.trim()).filter(Boolean);
@@ -23,7 +23,7 @@ function resolveTokens(authorization?: string): { tokens: string[]; error: strin
         return { tokens, error: null };
     }
     return {
-        tokens: sessionPool.getAllTokens({ onlyEnabled: true, preferLive: true }),
+        tokens: tokenPool.getAllTokens({ onlyEnabled: true, preferLive: true }),
         error: null
     };
 }
@@ -36,8 +36,8 @@ export default {
 
         '/pool': async () => {
             return {
-                summary: sessionPool.getSummary(),
-                items: sessionPool.getEntries(true)
+                summary: tokenPool.getSummary(),
+                items: tokenPool.getEntries(true)
             }
         }
 
@@ -62,7 +62,7 @@ export default {
             if (error === "empty_authorization_tokens") {
                 throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
             }
-            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
+            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 token pool 添加token。");
             const points = await Promise.all(tokens.map(async (token) => {
                 return {
                     token,
@@ -80,7 +80,7 @@ export default {
             if (error === "empty_authorization_tokens") {
                 throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
             }
-            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 session pool 添加token。");
+            if (tokens.length === 0) throw new Error("无可用token。请传入 Authorization，或先向 token pool 添加token。");
             const credits = await Promise.all(tokens.map(async (token) => {
                 const currentCredit = await getCredit(token);
                 if (currentCredit.totalCredit <= 0) {
@@ -114,55 +114,55 @@ export default {
         '/pool/add': async (request: Request) => {
             const tokens = parseBodyTokens(request.body.tokens);
             if (tokens.length === 0) throw new Error("body.tokens 不能为空，支持 string 或 string[]");
-            const result = await sessionPool.addTokens(tokens);
+            const result = await tokenPool.addTokens(tokens);
             return {
                 ...result,
-                summary: sessionPool.getSummary()
+                summary: tokenPool.getSummary()
             };
         },
 
         '/pool/remove': async (request: Request) => {
             const tokens = parseBodyTokens(request.body.tokens);
             if (tokens.length === 0) throw new Error("body.tokens 不能为空，支持 string 或 string[]");
-            const result = await sessionPool.removeTokens(tokens);
+            const result = await tokenPool.removeTokens(tokens);
             return {
                 ...result,
-                summary: sessionPool.getSummary()
+                summary: tokenPool.getSummary()
             };
         },
 
         '/pool/enable': async (request: Request) => {
             request.validate('body.token', _.isString);
-            const updated = await sessionPool.setTokenEnabled(request.body.token, true);
+            const updated = await tokenPool.setTokenEnabled(request.body.token, true);
             return {
                 updated,
-                summary: sessionPool.getSummary()
+                summary: tokenPool.getSummary()
             };
         },
 
         '/pool/disable': async (request: Request) => {
             request.validate('body.token', _.isString);
-            const updated = await sessionPool.setTokenEnabled(request.body.token, false);
+            const updated = await tokenPool.setTokenEnabled(request.body.token, false);
             return {
                 updated,
-                summary: sessionPool.getSummary()
+                summary: tokenPool.getSummary()
             };
         },
 
         '/pool/check': async () => {
-            const result = await sessionPool.runHealthCheck();
+            const result = await tokenPool.runHealthCheck();
             return {
                 ...result,
-                summary: sessionPool.getSummary()
+                summary: tokenPool.getSummary()
             };
         },
 
         '/pool/reload': async () => {
-            await sessionPool.reloadFromDisk();
+            await tokenPool.reloadFromDisk();
             return {
                 reloaded: true,
-                summary: sessionPool.getSummary(),
-                items: sessionPool.getEntries(true)
+                summary: tokenPool.getSummary(),
+                items: tokenPool.getEntries(true)
             };
         }
 

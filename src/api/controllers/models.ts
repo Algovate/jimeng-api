@@ -7,7 +7,7 @@ import {
   VIDEO_MODEL_MAP_US,
 } from "@/api/consts/common.ts";
 import { parseProxyFromToken, parseRegionFromToken, request } from "@/api/controllers/core.ts";
-import sessionPool from "@/lib/session-pool.ts";
+import tokenPool from "@/lib/session-pool.ts";
 
 type ModelItem = {
   id: string;
@@ -96,7 +96,7 @@ function parseFirstToken(authorization?: string): string | undefined {
 function resolveToken(authorization?: string): string | undefined {
   const fromAuth = parseFirstToken(authorization);
   if (fromAuth) return fromAuth;
-  const fromPool = sessionPool.getAllTokens({ onlyEnabled: true, preferLive: true })[0];
+  const fromPool = tokenPool.getAllTokens({ onlyEnabled: true, preferLive: true })[0];
   return fromPool || undefined;
 }
 

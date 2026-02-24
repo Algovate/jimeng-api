@@ -57,10 +57,10 @@ curl -X POST http://localhost:5100/v1/images/generations \
 
 ## 🚀 快速开始
 
-### sessionid获取
-- 国内站 (即梦)、国际站 (dreamina)获取sessionid的方法相同，见下图。
+### token 获取
+- 国内站 (即梦)、国际站 (dreamina) 获取 token 的方法相同，见下图。
 > **注意1**: 国内站和国际站接口相同，但需要通过不同的前缀来区分：
-> - **国内站**：直接使用sessionid，如 `Bearer your_session_id`
+> - **国内站**：直接使用 token，如 `Bearer your_token`
 > - **美国站**：需要添加 **us-** 前缀，如 `Bearer us-your_session_id`
 > - **香港站**：需要添加 **hk-** 前缀，如 `Bearer hk-your_session_id`
 > - **日本站**：需要添加 **jp-** 前缀，如 `Bearer jp-your_session_id`
@@ -140,25 +140,25 @@ jimeng models list --json
 # 启动服务
 jimeng serve
 
-# 检测 session id
-jimeng token check --session-id YOUR_SESSION_ID
+# 检测 token
+jimeng token check --token YOUR_TOKEN
 
 # 文生图
 jimeng image generate \
-  --session-id YOUR_SESSION_ID \
+  --token YOUR_TOKEN \
   --prompt "一座未来城市夜景，电影感，高细节" \
   --ratio "16:9" \
   --resolution "2k"
 
 # 图生图（本地图片）
 jimeng image edit \
-  --session-id YOUR_SESSION_ID \
+  --token YOUR_TOKEN \
   --prompt "提升画面细节，保持主体不变" \
   --image ./input.png
 
 # 图生视频
 jimeng video generate \
-  --session-id YOUR_SESSION_ID \
+  --token YOUR_TOKEN \
   --prompt "让画面主体自然行走" \
   --image ./first-frame.png
 ```
@@ -263,7 +263,7 @@ pip install requests Pillow
 在 Claude Code 中,您可以直接对话使用:
 
 ```
-用户: "我的sessionid为xxxxx，用即梦生成一张2K分辨率的16:9图片,内容是未来都市的日落景色"
+用户: "我的token为xxxxx，用即梦生成一张2K分辨率的16:9图片,内容是未来都市的日落景色"
 
 Claude: [自动调用 skill,生成图片并保存到 /pic 目录]
 ```
@@ -730,8 +730,8 @@ tsx scripts/test-video-generation.ts \
 
 **Token 自动来源优先级**：
 - 1) `--token`
-- 2) 环境变量 `TEST_SESSION_ID`
-- 3) `configs/session-pool.json` 的第一个 token
+- 2) 环境变量 `TEST_TOKEN`
+- 3) `configs/token-pool.json` 的第一个 token
 
 **默认 fixtures**：
 - `./scripts/fixtures/sample-input-image.png`（不存在时会由 `sample-input-image.png.base64` 自动生成）
@@ -809,12 +809,12 @@ curl -X POST http://localhost:5100/token/receive \
   -H "Authorization: Bearer TOKEN1,TOKEN2,TOKEN3"
 ```
 
-#### Session Pool（多 sessionid 池）
+#### Token Pool（多 token 池）
 
-服务内置 session pool，支持文件持久化、定时探活、自动禁用失效 token。
+服务内置 token pool，支持文件持久化、定时探活、自动禁用失效 token。
 
-- 默认池文件：`configs/session-pool.json`（首次启动自动创建）
-- 示例文件：`configs/session-pool.example.json`
+- 默认池文件：`configs/token-pool.json`（首次启动自动创建）
+- 示例文件：`configs/token-pool.example.json`
 - 图片/视频接口：有 `Authorization` 时优先用请求头；无 `Authorization` 时自动从 pool 选 token
 - `POST /token/points`、`POST /token/receive`：无 `Authorization` 时自动作用于 pool 中可用 token
 
@@ -840,13 +840,13 @@ curl -X POST http://localhost:5100/token/pool/check
 
 **可选环境变量**:
 
-- `SESSION_POOL_ENABLED=true|false`（默认 `true`）
-- `SESSION_POOL_FILE=configs/session-pool.json`
-- `SESSION_POOL_HEALTHCHECK_INTERVAL_MS=600000`
-- `SESSION_POOL_STRATEGY=random|round_robin`
-- `SESSION_POOL_AUTO_DISABLE=true|false`（默认 `true`）
-- `SESSION_POOL_AUTO_DISABLE_FAILURES=2`
-- `SESSION_POOL_FETCH_CREDIT=true|false`（默认 `false`）
+- `TOKEN_POOL_ENABLED=true|false`（默认 `true`）
+- `TOKEN_POOL_FILE=configs/token-pool.json`
+- `TOKEN_POOL_HEALTHCHECK_INTERVAL_MS=600000`
+- `TOKEN_POOL_STRATEGY=random|round_robin`
+- `TOKEN_POOL_AUTO_DISABLE=true|false`（默认 `true`）
+- `TOKEN_POOL_AUTO_DISABLE_FAILURES=2`
+- `TOKEN_POOL_FETCH_CREDIT=true|false`（默认 `false`）
 
 ## 🔍 API响应格式
 

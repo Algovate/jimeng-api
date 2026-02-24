@@ -57,4 +57,5 @@ tmp/
 temp/
 jimeng-*.md
 configs/session-pool.json
+configs/token-pool.json
 .ace-tool/

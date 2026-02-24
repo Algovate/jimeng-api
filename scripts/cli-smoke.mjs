@@ -41,7 +41,7 @@ function main() {
   run(["video", "generate", "--help"], { mustInclude: ["jimeng video generate"] });
 
   // Parameter guard smoke test: required args should fail fast.
-  run(["image", "generate"], { expectCode: 1, mustInclude: ["Missing required --session-id"] });
+  run(["image", "generate"], { expectCode: 1, mustInclude: ["Missing required --prompt"] });
 
   console.log("CLI smoke checks passed.");
 }

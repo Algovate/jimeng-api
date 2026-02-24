@@ -3,7 +3,7 @@ import _ from 'lodash';
 import Request from '@/lib/request/Request.ts';
 import { generateVideo, DEFAULT_MODEL } from '@/api/controllers/videos.ts';
 import util from '@/lib/util.ts';
-import sessionPool from '@/lib/session-pool.ts';
+import tokenPool from '@/lib/session-pool.ts';
 
 export default {
 
@@ -134,7 +134,7 @@ export default {
                 }
             }
 
-            const tokenPick = sessionPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
+            const tokenPick = tokenPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
             const token = tokenPick.token;
             if (!token) {
                 if (tokenPick.error === "invalid_authorization_format") {
@@ -143,7 +143,7 @@ export default {
                 if (tokenPick.error === "empty_authorization_tokens") {
                     throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
                 }
-                throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+                throw new Error("缺少可用的token。请传入 Authorization: Bearer <token>，或先添加到 token pool。");
             }
 
             const {

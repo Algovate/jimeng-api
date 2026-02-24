@@ -5,7 +5,7 @@ import Request from "@/lib/request/Request.ts";
 import { generateImages, generateImageComposition } from "@/api/controllers/images.ts";
 import { DEFAULT_IMAGE_MODEL } from "@/api/consts/common.ts";
 import util from "@/lib/util.ts";
-import sessionPool from "@/lib/session-pool.ts";
+import tokenPool from "@/lib/session-pool.ts";
 
 export default {
   prefix: "/v1/images",
@@ -30,7 +30,7 @@ export default {
         .validate("body.sample_strength", v => _.isUndefined(v) || _.isFinite(v))
         .validate("body.response_format", v => _.isUndefined(v) || _.isString(v));
 
-      const tokenPick = sessionPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
+      const tokenPick = tokenPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
       const token = tokenPick.token;
       if (!token) {
         if (tokenPick.error === "invalid_authorization_format") {
@@ -39,7 +39,7 @@ export default {
         if (tokenPick.error === "empty_authorization_tokens") {
           throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
         }
-        throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+        throw new Error("缺少可用的token。请传入 Authorization: Bearer <token>，或先添加到 token pool。");
       }
       const {
         model,
@@ -145,7 +145,7 @@ export default {
         images = bodyImages.map((image: any) => _.isString(image) ? image : image.url);
       }
 
-      const tokenPick = sessionPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
+      const tokenPick = tokenPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
       const token = tokenPick.token;
       if (!token) {
         if (tokenPick.error === "invalid_authorization_format") {
@@ -154,7 +154,7 @@ export default {
         if (tokenPick.error === "empty_authorization_tokens") {
           throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
         }
-        throw new Error("缺少可用的sessionid。请传入 Authorization: Bearer <token>，或先添加到 session pool。");
+        throw new Error("缺少可用的token。请传入 Authorization: Bearer <token>，或先添加到 token pool。");
       }
 
       const {

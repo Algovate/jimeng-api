@@ -19,7 +19,7 @@ function usageRoot(): string {
     "Commands:",
     "  serve                            Start jimeng-api service",
     "  models list                      List available models",
-    "  token check                      Validate session ids via /token/check",
+    "  token check                      Validate token(s) via /token/check",
     "  image generate                   Generate image from text",
     "  image edit                       Edit image(s) with prompt",
     "  video generate                   Generate video from image(s)",
@@ -47,23 +47,23 @@ function usageTokenCheck(): string {
     "  jimeng token check [options]",
     "",
     "Options:",
-    "  --session-id <id>        Session id, can be repeated",
-    "  --session-file <path>    Read session ids from file (one per line, # for comments)",
+    "  --token <token>          Token, can be repeated",
+    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
     "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
     "  --help                   Show help",
     "",
     "Env:",
-    "  JIMENG_SESSION_IDS       Comma-separated session ids (used when args not provided)",
+    "  JIMENG_TOKENS            Comma-separated tokens (used when args not provided)",
   ].join("\n");
 }
 
 function usageImageGenerate(): string {
   return [
     "Usage:",
-    "  jimeng image generate --session-id <id> --prompt <text> [options]",
+    "  jimeng image generate --prompt <text> [options]",
     "",
     "Options:",
-    "  --session-id <id>        Required",
+    "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
     "  --model <model>          Default jimeng-4.5",
     "  --ratio <ratio>          Default 1:1",
@@ -80,10 +80,10 @@ function usageImageGenerate(): string {
 function usageImageEdit(): string {
   return [
     "Usage:",
-    "  jimeng image edit --session-id <id> --prompt <text> --image <path_or_url> [--image <path_or_url> ...] [options]",
+    "  jimeng image edit --prompt <text> --image <path_or_url> [--image <path_or_url> ...] [options]",
     "",
     "Options:",
-    "  --session-id <id>        Required",
+    "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
     "  --image <path_or_url>    Required, can be repeated (1-10)",
     "  --model <model>          Default jimeng-4.5",
@@ -104,10 +104,10 @@ function usageImageEdit(): string {
 function usageVideoGenerate(): string {
   return [
     "Usage:",
-    "  jimeng video generate --session-id <id> --prompt <text> --image <path> [options]",
+    "  jimeng video generate --prompt <text> --image <path> [options]",
     "",
     "Options:",
-    "  --session-id <id>        Required",
+    "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
     "  --image <path>           Required, first frame",
     "  --image2 <path>          Optional, last frame",
@@ -146,10 +146,10 @@ function sanitizeBaseUrl(baseUrl: string | undefined): string {
   return (baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
 }
 
-function maskSessionId(sessionId: string): string {
-  const n = sessionId.length;
+function maskToken(token: string): string {
+  const n = token.length;
   if (n <= 10) return "***";
-  return `${sessionId.slice(0, 4)}...${sessionId.slice(-4)}`;
+  return `${token.slice(0, 4)}...${token.slice(-4)}`;
 }
 
 function ensurePrompt(prompt: string | undefined, usage: string): string {
@@ -159,11 +159,9 @@ function ensurePrompt(prompt: string | undefined, usage: string): string {
   return prompt;
 }
 
-function ensureSessionId(sessionId: string | undefined, usage: string): string {
-  if (!sessionId) {
-    fail(`Missing required --session-id.\n\n${usage}`);
-  }
-  return sessionId;
+function buildAuthHeaders(token: string | undefined): Record<string, string> {
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 }
 
 function isHttpUrl(input: string): boolean {
@@ -329,7 +327,7 @@ async function downloadImages(urls: string[], outputDir: string, prefix: string)
 
 async function handleTokenCheck(argv: string[]): Promise<void> {
   const args = minimist(argv, {
-    string: ["session-id", "session-file", "base-url"],
+    string: ["token", "token-file", "base-url"],
     boolean: ["help"],
   });
 
@@ -339,18 +337,18 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
   }
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
-  const fromArgs = toStringList(args["session-id"]);
-  const fromEnv = (process.env.JIMENG_SESSION_IDS || "")
+  const fromArgs = toStringList(args.token);
+  const fromEnv = (process.env.JIMENG_TOKENS || "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
   const tokens = [...fromArgs];
 
-  const sessionFile = getSingleString(args, "session-file");
-  if (sessionFile) {
-    const filePath = path.resolve(sessionFile);
+  const tokenFile = getSingleString(args, "token-file");
+  if (tokenFile) {
+    const filePath = path.resolve(tokenFile);
     if (!(await pathExists(filePath))) {
-      fail(`Session file not found: ${filePath}`);
+      fail(`Token file not found: ${filePath}`);
     }
     const lines = (await readFile(filePath, "utf8")).split(/\r?\n/);
     lines.forEach((line) => {
@@ -365,10 +363,10 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
   }
 
   if (tokens.length === 0) {
-    fail(`No session ids provided.\n\n${usageTokenCheck()}`);
+    fail(`No tokens provided.\n\n${usageTokenCheck()}`);
   }
 
-  console.log(`Checking ${tokens.length} session id(s) against ${baseUrl}/token/check`);
+  console.log(`Checking ${tokens.length} token(s) against ${baseUrl}/token/check`);
 
   let invalid = 0;
   let requestErrors = 0;
@@ -384,15 +382,15 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
       const live =
         normalized && typeof normalized === "object" ? (normalized as JsonRecord).live : undefined;
       if (live === true) {
-        console.log(`[OK]   ${maskSessionId(token)} live=true`);
+        console.log(`[OK]   ${maskToken(token)} live=true`);
       } else {
         invalid += 1;
-        console.log(`[FAIL] ${maskSessionId(token)} live=false`);
+        console.log(`[FAIL] ${maskToken(token)} live=false`);
       }
     } catch (error) {
       requestErrors += 1;
       console.log(
-        `[ERROR] ${maskSessionId(token)} ${
+        `[ERROR] ${maskToken(token)} ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -463,7 +461,7 @@ async function handleModelsList(argv: string[]): Promise<void> {
 async function handleImageGenerate(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
-      "session-id",
+      "token",
       "prompt",
       "model",
       "ratio",
@@ -481,7 +479,7 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
     return;
   }
 
-  const sessionId = ensureSessionId(getSingleString(args, "session-id"), usageImageGenerate());
+  const token = getSingleString(args, "token");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageImageGenerate());
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
   const outputDir = getSingleString(args, "output-dir") || "./pic/cli-image-generate";
@@ -514,8 +512,8 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
   const { payload } = await requestJson(endpoint, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${sessionId}`,
       "Content-Type": "application/json",
+      ...buildAuthHeaders(token),
     },
     body: JSON.stringify(body),
   });
@@ -535,7 +533,7 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
 async function handleImageEdit(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
-      "session-id",
+      "token",
       "prompt",
       "image",
       "model",
@@ -554,7 +552,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
     return;
   }
 
-  const sessionId = ensureSessionId(getSingleString(args, "session-id"), usageImageEdit());
+  const token = getSingleString(args, "token");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageImageEdit());
   const sources = toStringList(args.image);
   if (sources.length === 0) {
@@ -604,8 +602,8 @@ async function handleImageEdit(argv: string[]): Promise<void> {
     const result = await requestJson(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${sessionId}`,
         "Content-Type": "application/json",
+        ...buildAuthHeaders(token),
       },
       body: JSON.stringify(body),
     });
@@ -641,7 +639,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
 
     const result = await requestJson(endpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${sessionId}` },
+      headers: buildAuthHeaders(token),
       body: form,
     });
     payload = result.payload;
@@ -662,7 +660,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
 async function handleVideoGenerate(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
-      "session-id",
+      "token",
       "prompt",
       "image",
       "image2",
@@ -681,7 +679,7 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
     return;
   }
 
-  const sessionId = ensureSessionId(getSingleString(args, "session-id"), usageVideoGenerate());
+  const token = getSingleString(args, "token");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageVideoGenerate());
   const image = getSingleString(args, "image");
   if (!image) {
@@ -732,7 +730,7 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   console.log(`Calling: ${endpoint}`);
   const { payload } = await requestJson(endpoint, {
     method: "POST",
-    headers: { Authorization: `Bearer ${sessionId}` },
+    headers: buildAuthHeaders(token),
     body: form,
   });
 

@@ -4,7 +4,7 @@ import "@/lib/initialize.ts";
 import server from "@/lib/server.ts";
 import routes from "@/api/routes/index.ts";
 import logger from "@/lib/logger.ts";
-import sessionPool from "@/lib/session-pool.ts";
+import tokenPool from "@/lib/session-pool.ts";
 
 export async function startService(): Promise<void> {
   const startupTime = performance.now();
@@ -16,7 +16,7 @@ export async function startService(): Promise<void> {
   logger.info("Environment:", environment.env);
   logger.info("Service name:", config.service.name);
 
-  await sessionPool.init();
+  await tokenPool.init();
   server.attachRoutes(routes);
   await server.listen();
 
