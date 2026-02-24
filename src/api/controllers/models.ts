@@ -6,7 +6,14 @@ import {
   VIDEO_MODEL_MAP_ASIA,
   VIDEO_MODEL_MAP_US,
 } from "@/api/consts/common.ts";
-import { parseProxyFromToken, parseRegionFromToken, request } from "@/api/controllers/core.ts";
+import {
+  assertTokenWithoutRegionPrefix,
+  buildRegionInfo,
+  parseProxyFromToken,
+  parseRegionCode,
+  RegionCode,
+  request,
+} from "@/api/controllers/core.ts";
 import tokenPool from "@/lib/session-pool.ts";
 
 type ModelItem = {
@@ -100,19 +107,30 @@ function resolveToken(authorization?: string): string | undefined {
   return fromPool || undefined;
 }
 
-function getRegionalMaps(token?: string): Record<string, string>[] {
-  if (!token) {
-    return [IMAGE_MODEL_MAP, IMAGE_MODEL_MAP_US, IMAGE_MODEL_MAP_ASIA, VIDEO_MODEL_MAP, VIDEO_MODEL_MAP_US, VIDEO_MODEL_MAP_ASIA];
-  }
-  const region = parseRegionFromToken(token);
-  if (region.isUS) return [IMAGE_MODEL_MAP_US, VIDEO_MODEL_MAP_US];
-  if (region.isHK || region.isJP || region.isSG) return [IMAGE_MODEL_MAP_ASIA, VIDEO_MODEL_MAP_ASIA];
-  return [IMAGE_MODEL_MAP, VIDEO_MODEL_MAP];
+function getRegionalMaps(region: RegionCode): Record<string, string>[] {
+  if (region === "us") return [IMAGE_MODEL_MAP_US, VIDEO_MODEL_MAP_US];
+  if (region === "hk" || region === "jp" || region === "sg") return [IMAGE_MODEL_MAP_ASIA, VIDEO_MODEL_MAP_ASIA];
+  if (region === "cn") return [IMAGE_MODEL_MAP, VIDEO_MODEL_MAP];
+  return [IMAGE_MODEL_MAP, IMAGE_MODEL_MAP_US, IMAGE_MODEL_MAP_ASIA, VIDEO_MODEL_MAP, VIDEO_MODEL_MAP_US, VIDEO_MODEL_MAP_ASIA];
 }
 
-function buildReverseMap(token?: string): Record<string, string> {
+function resolveRegion(authorization?: string, xRegion?: string): RegionCode {
+  const token = resolveToken(authorization);
+  const parsedXRegion = parseRegionCode(xRegion);
+  if (token) {
+    assertTokenWithoutRegionPrefix(token);
+    const normalizedToken = parseProxyFromToken(token).token;
+    const poolRegion = tokenPool.getTokenEntry(normalizedToken)?.region;
+    if (poolRegion) return poolRegion;
+    if (parsedXRegion) return parsedXRegion;
+    throw new Error("缺少 region。token 未在 pool 中注册时，/v1/models 需要提供请求头 X-Region");
+  }
+  return parsedXRegion || "cn";
+}
+
+function buildReverseMap(region: RegionCode): Record<string, string> {
   const reverse: Record<string, string> = {};
-  for (const map of getRegionalMaps(token)) {
+  for (const map of getRegionalMaps(region)) {
     for (const [modelId, upstreamKey] of Object.entries(map)) {
       reverse[upstreamKey] = modelId;
     }
@@ -120,15 +138,21 @@ function buildReverseMap(token?: string): Record<string, string> {
   return reverse;
 }
 
-function buildFallbackModels(token?: string): ModelItem[] {
-  const maps = getRegionalMaps(token);
+function buildFallbackModels(region: RegionCode): ModelItem[] {
+  const maps = getRegionalMaps(region);
   const modelIds = Array.from(new Set(maps.flatMap((item) => Object.keys(item)))).sort();
   return modelIds.map((id) => buildModelItem(id));
 }
 
-function makeCacheKey(token?: string): string {
-  const regionPart = token ? JSON.stringify(parseRegionFromToken(token)) : "cn-default";
-  return `models|${regionPart}`;
+function makeCacheKey(region: RegionCode): string {
+  return `models|${region}`;
+}
+
+function resolveFetchToken(token: string | undefined): string {
+  if (!token) return FALLBACK_TOKEN;
+  const normalizedToken = parseProxyFromToken(token).token;
+  assertTokenWithoutRegionPrefix(normalizedToken);
+  return normalizedToken;
 }
 
 function extractCapabilities(item: Record<string, unknown>): string[] {
@@ -149,13 +173,15 @@ function extractCapabilities(item: Record<string, unknown>): string[] {
 }
 
 async function fetchConfigModelReqKeys(
-  token: string
+  token: string,
+  region: RegionCode
 ): Promise<{ imageModels: UpstreamModelMeta[]; videoModels: UpstreamModelMeta[] }> {
-  const imageConfig = await request("post", "/mweb/v1/get_common_config", token, {
+  const regionInfo = buildRegionInfo(region);
+  const imageConfig = await request("post", "/mweb/v1/get_common_config", token, regionInfo, {
     data: {},
     params: { needCache: true, needRefresh: false },
   });
-  const videoConfig = await request("post", "/mweb/v1/video_generate/get_common_config", token, {
+  const videoConfig = await request("post", "/mweb/v1/video_generate/get_common_config", token, regionInfo, {
     data: { scene: "generate_video", params: {} },
   });
 
@@ -192,20 +218,21 @@ async function fetchConfigModelReqKeys(
 }
 
 export async function getLiveModels(
-  authorization?: string
+  authorization?: string,
+  xRegion?: string
 ): Promise<{ source: "upstream" | "fallback"; data: ModelItem[] }> {
+  const region = resolveRegion(authorization, xRegion);
   const token = resolveToken(authorization);
-  const normalizedToken = token ? parseProxyFromToken(token).token : undefined;
-  const effectiveToken = normalizedToken || FALLBACK_TOKEN;
-  const cacheKey = makeCacheKey(normalizedToken);
+  const effectiveToken = resolveFetchToken(token);
+  const cacheKey = makeCacheKey(region);
   const cached = modelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return { source: cached.source, data: cached.data };
   }
 
   try {
-    const reverseMap = buildReverseMap(normalizedToken);
-    const { imageModels, videoModels } = await fetchConfigModelReqKeys(effectiveToken);
+    const reverseMap = buildReverseMap(region);
+    const { imageModels, videoModels } = await fetchConfigModelReqKeys(effectiveToken, region);
     const upstreamModels = [...imageModels, ...videoModels];
     const metaByModelId = new Map<string, UpstreamModelMeta>();
     const mapped = upstreamModels
@@ -232,7 +259,7 @@ export async function getLiveModels(
 
     return { source: "upstream", data };
   } catch {
-    const data = buildFallbackModels(normalizedToken);
+    const data = buildFallbackModels(region);
     modelCache.set(cacheKey, {
       expiresAt: Date.now() + CACHE_TTL_MS,
       source: "fallback",

@@ -2,6 +2,7 @@ import _ from 'lodash';
 
 import Request from '@/lib/request/Request.ts';
 import { generateVideo, DEFAULT_MODEL } from '@/api/controllers/videos.ts';
+import { buildRegionInfo } from '@/api/controllers/core.ts';
 import util from '@/lib/util.ts';
 import tokenPool from '@/lib/session-pool.ts';
 
@@ -134,18 +135,6 @@ export default {
                 }
             }
 
-            const tokenPick = tokenPool.pickTokenFromAuthorizationDetailed(request.headers.authorization);
-            const token = tokenPick.token;
-            if (!token) {
-                if (tokenPick.error === "invalid_authorization_format") {
-                    throw new Error("Authorization 格式无效。请使用: Authorization: Bearer <token1[,token2,...]>");
-                }
-                if (tokenPick.error === "empty_authorization_tokens") {
-                    throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
-                }
-                throw new Error("缺少可用的token。请传入 Authorization: Bearer <token>，或先添加到 token pool。");
-            }
-
             const {
                 model = DEFAULT_MODEL,
                 prompt,
@@ -156,6 +145,34 @@ export default {
                 filePaths = [],
                 response_format = "url"
             } = request.body;
+            const regionHeader = request.headers["x-region"] as string | undefined;
+            const tokenPick = tokenPool.pickTokenForRequest({
+                authorization: request.headers.authorization,
+                requestedModel: model,
+                taskType: "video",
+                requiredCapabilityTags: isOmniMode ? ["omni_reference"] : [],
+                xRegion: regionHeader,
+            });
+            const token = tokenPick.token;
+            if (!token || !tokenPick.region) {
+                if (tokenPick.error === "invalid_authorization_format") {
+                    throw new Error("Authorization 格式无效。请使用: Authorization: Bearer <token1[,token2,...]>");
+                }
+                if (tokenPick.error === "empty_authorization_tokens") {
+                    throw new Error("Authorization 中未包含有效 token。请使用: Authorization: Bearer <token1[,token2,...]>");
+                }
+                if (tokenPick.error === "unsupported_region") {
+                    throw new Error("X-Region 无效。仅支持: cn/us/hk/jp/sg");
+                }
+                if (tokenPick.error === "prefixed_token_not_supported") {
+                    throw new Error("token 前缀协议已移除。请使用纯 token，并通过 X-Region 或 token-pool.region 指定区域");
+                }
+                if (tokenPick.error === "missing_region") {
+                    throw new Error("缺少 region。请设置请求头 X-Region，或先在 token-pool 中为 token 配置 region");
+                }
+                throw new Error(tokenPick.reason || "缺少可用的token。请传入 Authorization: Bearer <token>，或先添加到 token pool。");
+            }
+            const regionInfo = buildRegionInfo(tokenPick.region);
 
             // 如果是 multipart/form-data，需要将字符串转换为数字
             const finalDuration = isMultiPart && typeof duration === 'string'
@@ -178,7 +195,8 @@ export default {
                     httpRequest: request, // 传递完整的 request 对象以访问动态字段
                     functionMode,
                 },
-                token
+                token,
+                regionInfo
             );
 
             // 根据response_format返回不同格式的结果

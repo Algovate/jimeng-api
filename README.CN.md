@@ -59,20 +59,24 @@ curl -X POST http://localhost:5100/v1/images/generations \
 
 ### token 获取
 - 国内站 (即梦)、国际站 (dreamina) 获取 token 的方法相同，见下图。
-> **注意1**: 国内站和国际站接口相同，但需要通过不同的前缀来区分：
-> - **国内站**：直接使用 token，如 `Bearer your_token`
-> - **美国站**：需要添加 **us-** 前缀，如 `Bearer us-your_session_id`
-> - **香港站**：需要添加 **hk-** 前缀，如 `Bearer hk-your_session_id`
-> - **日本站**：需要添加 **jp-** 前缀，如 `Bearer jp-your_session_id`
-> - **新加坡站**: 需要添加 **sg-** 前缀，如 `Bearer sg-your_session_id`
+> **注意1（Breaking Change）**: 已移除 token 地区前缀协议。`us-`/`hk-`/`jp-`/`sg-` 前缀不再支持。
+> - **新格式**：统一使用纯 token，如 `Bearer your_session_id`
+> - **region 指定方式**：
+>   - token 在 `token-pool` 中：使用条目 `region`
+>   - token 不在 pool 中：通过请求头 `X-Region: cn|us|hk|jp|sg`
 >
 > **注意2**: 支持在 Token 中绑定代理（HTTP/SOCKS5等），详见 [Token 绑定代理功能](#token-绑定代理功能-新)。
 >
 > **注意3**: 国内站和国际站现已同时支持*文生图*和*图生图*，国际站添加nanobanana和nanobananapro模型。
 >
 > **注意4**: 国际站使用nanobanana模型时的分辨率规则:
-> - **美国站 (us-)**: 生成的图像固定为 **1024x1024** 和 **2k** 清晰度，忽略用户传入的 ratio 和 resolution 参数
-> - **香港/日本/新加坡站 (hk-/jp-/sg-)**: 强制使用 **1k** 清晰度，但支持自定义 ratio 参数（如 16:9、4:3 等）
+> - **美国站 (us)**: 生成的图像固定为 **1024x1024** 和 **2k** 清晰度，忽略用户传入的 ratio 和 resolution 参数
+> - **香港/日本/新加坡站 (hk/jp/sg)**: 强制使用 **1k** 清晰度，但支持自定义 ratio 参数（如 16:9、4:3 等）
+>
+> **注意5（迁移脚本）**: 如果你的 `configs/token-pool.json` 里还有 `us-/hk-/jp-/sg-` 前缀，可执行：
+> - 预览变更：`node scripts/migrate-token-pool-prefix.mjs --dry-run`
+> - 执行迁移：`npm run token:migrate:prefix`
+> - 可选指定文件：`node scripts/migrate-token-pool-prefix.mjs --file /absolute/path/token-pool.json`
 
 ![](https://github.com/iptag/jimeng-api/blob/main/get_sessionid.png)
 
@@ -144,17 +148,17 @@ jimeng serve
 jimeng token list
 
 # 检测 token
-jimeng token check --token YOUR_TOKEN
+jimeng token check --token YOUR_TOKEN --region us
 
 # 添加/移除/启用/禁用 token
-jimeng token add --token YOUR_TOKEN
+jimeng token add --token YOUR_TOKEN --region us
 jimeng token remove --token YOUR_TOKEN
 jimeng token enable --token YOUR_TOKEN
 jimeng token disable --token YOUR_TOKEN
 
 # 查询积分/领取积分（不传 --token 时使用服务端 token-pool）
-jimeng token points
-jimeng token receive
+jimeng token points --region us
+jimeng token receive --region us
 
 # 文生图
 jimeng image generate \
@@ -465,11 +469,10 @@ curl -X POST http://localhost:5100/v1/images/generations \
 
 ```bash
 # 国际版图生图示例 (本地文件上传)
-# 美国站使用 "us-YOUR_SESSION_ID"
-# 香港站使用 "hk-YOUR_SESSION_ID"
-# 日本站使用 "jp-YOUR_SESSION_ID"
+# region 通过 X-Region 指定：us/hk/jp/sg
 curl -X POST http://localhost:5100/v1/images/compositions \
-  -H "Authorization: Bearer us-YOUR_SESSION_ID" \
+  -H "Authorization: Bearer YOUR_SESSION_ID" \
+  -H "X-Region: us" \
   -F "prompt=A cute cat, anime style" \
   -F "model=jimeng-4.5" \
   -F "images=@/path/to/your/local/cat.jpg"
@@ -727,15 +730,17 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 
 ### Token API
 
+> 自 `vNext` 起，token 前缀协议已移除。若请求头里的 token 不在 token-pool 中，必须提供 `X-Region: cn|us|hk|jp|sg`。
+
 #### Token 绑定代理功能 (新)
 
 **功能说明**：用户可以在 token 中嵌入代理 URL，解决因 IP 限制导致签到获取 0 积分的问题。每个账号可以绑定独立的代理。
 
 **Token 格式**：
 ```
-[代理URL@][地区前缀-]session_id
+[代理URL@]session_id
 
-代理前缀在最外层，地区前缀紧跟 session_id
+代理前缀在最外层。region 不再写入 token 字符串中，而是通过 token-pool 的 `region` 字段或请求头 `X-Region` 指定。
 ```
 
 **支持的代理协议**：
@@ -749,23 +754,25 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 | 场景 | Token 格式 |
 |------|-----------|
 | 国内站，无代理 | `session_id_xxx` |
-| 美国站，无代理 | `us-session_id_xxx` |
-| 香港站，无代理 | `hk-session_id_xxx` |
+| 美国站，无代理 | `session_id_xxx` + `X-Region: us` |
+| 香港站，无代理 | `session_id_xxx` + `X-Region: hk` |
 | 国内站 + SOCKS5代理 | `socks5://127.0.0.1:1080@session_id_xxx` |
-| 美国站 + HTTP代理 | `http://127.0.0.1:7890@us-session_id_xxx` |
-| 香港站 + 带认证代理 | `http://user:pass@proxy.com:8080@hk-session_id_xxx` |
+| 美国站 + HTTP代理 | `http://127.0.0.1:7890@session_id_xxx` + `X-Region: us` |
+| 香港站 + 带认证代理 | `http://user:pass@proxy.com:8080@session_id_xxx` + `X-Region: hk` |
 
 **API 调用示例**：
 ```bash
 # 单个 token 带代理
 curl -X POST http://localhost:5100/v1/images/generations \
-  -H "Authorization: Bearer socks5://127.0.0.1:1080@us-session_id" \
+  -H "Authorization: Bearer socks5://127.0.0.1:1080@session_id" \
+  -H "X-Region: us" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a cat", "model": "jimeng-3.0"}'
 
 # 多个 token，部分带代理
 curl -X POST http://localhost:5100/token/receive \
-  -H "Authorization: Bearer socks5://1.2.3.4:1080@us-token1,http://5.6.7.8:8080@hk-token2,token3"
+  -H "Authorization: Bearer socks5://1.2.3.4:1080@token1,http://5.6.7.8:8080@token2,token3" \
+  -H "X-Region: us"
 ```
 
 **向后兼容**：不带代理的 token 格式完全兼容，无需修改。
@@ -778,6 +785,7 @@ curl -X POST http://localhost:5100/token/receive \
 
 **请求参数**:
 - `token` (string): 要检查的session token
+- `region` (string, 可选): 区域（`cn|us|hk|jp|sg`）。若 token 已在 token-pool 中可省略，否则建议传入或通过请求头 `X-Region` 指定。
 
 **响应格式**:
 ```json
@@ -911,6 +919,7 @@ curl -X POST http://localhost:5100/token/receive \
 
 - 默认池文件：`configs/token-pool.json`（首次启动自动创建）
 - 示例文件：`configs/token-pool.example.json`
+- token-pool 新增 `region` 必填字段（`cn|us|hk|jp|sg`），用于路由与能力匹配
 - 图片/视频接口：有 `Authorization` 时优先用请求头；无 `Authorization` 时自动从 pool 选 token
 - `POST /token/points`、`POST /token/receive`：无 `Authorization` 时自动作用于 pool 中可用 token
 
@@ -920,15 +929,20 @@ curl -X POST http://localhost:5100/token/receive \
 # 查看 pool 状态（token 已脱敏）
 curl http://localhost:5100/token/pool
 
-# 添加 token（支持 string 或 string[]）
+# 添加 token（string/string[] 需搭配 body.region；也可传对象数组）
 curl -X POST http://localhost:5100/token/pool/add \
   -H "Content-Type: application/json" \
-  -d '{"tokens":["us-token1","token2"]}'
+  -d '{"tokens":["token1","token2"],"region":"us"}'
+
+# 或对象写法（推荐，可同时配置能力）
+curl -X POST http://localhost:5100/token/pool/add \
+  -H "Content-Type: application/json" \
+  -d '{"tokens":[{"token":"token-cn-1","region":"cn","allowedModels":["jimeng-4.5"]},{"token":"token-us-1","region":"us","capabilityTags":["omni_reference"]}]}'
 
 # 移除 token
 curl -X POST http://localhost:5100/token/pool/remove \
   -H "Content-Type: application/json" \
-  -d '{"tokens":"us-token1,token2"}'
+  -d '{"tokens":"token1,token2"}'
 
 # 立即执行健康检查
 curl -X POST http://localhost:5100/token/pool/check

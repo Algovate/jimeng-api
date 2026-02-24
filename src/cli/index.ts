@@ -487,24 +487,25 @@ function printTokenEntriesTable(items: unknown[]): void {
     console.log("(empty)");
     return;
   }
-  console.log("token\tenabled\tlive\tlastCredit\tlastCheckedAt\tfailures");
+  console.log("token\tregion\tenabled\tlive\tlastCredit\tlastCheckedAt\tfailures");
   for (const item of items) {
     if (!item || typeof item !== "object") continue;
     const entry = item as JsonRecord;
     const token = typeof entry.token === "string" ? entry.token : "-";
+    const region = typeof entry.region === "string" ? entry.region : "-";
     const enabled = typeof entry.enabled === "boolean" ? String(entry.enabled) : "-";
     const live = typeof entry.live === "boolean" ? String(entry.live) : "-";
     const lastCredit = typeof entry.lastCredit === "number" ? String(entry.lastCredit) : "-";
     const lastCheckedAt = formatUnixMs(entry.lastCheckedAt);
     const failures =
       typeof entry.consecutiveFailures === "number" ? String(entry.consecutiveFailures) : "-";
-    console.log(`${token}\t${enabled}\t${live}\t${lastCredit}\t${lastCheckedAt}\t${failures}`);
+    console.log(`${token}\t${region}\t${enabled}\t${live}\t${lastCredit}\t${lastCheckedAt}\t${failures}`);
   }
 }
 
 async function handleTokenCheck(argv: string[]): Promise<void> {
   const args = minimist(argv, {
-    string: ["token", "token-file", "base-url"],
+    string: ["token", "token-file", "base-url", "region"],
     boolean: ["help"],
   });
   const usage = usageTokenSubcommand("check");
@@ -514,6 +515,7 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
   }
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const region = getSingleString(args, "region");
   const tokens = await collectTokensFromArgs(args, usage, true);
   console.log(`Checking ${tokens.length} token(s) against ${baseUrl}/token/check`);
 
@@ -523,8 +525,11 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
     try {
       const { payload } = await requestJson(`${baseUrl}/token/check`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(region ? { "X-Region": region } : {}),
+        },
+        body: JSON.stringify({ token, ...(region ? { region } : {}) }),
       });
       const normalized = unwrapBody(payload);
       const live =
@@ -577,7 +582,7 @@ async function handleTokenPointsOrReceive(
   action: "points" | "receive"
 ): Promise<void> {
   const args = minimist(argv, {
-    string: ["token", "token-file", "base-url"],
+    string: ["token", "token-file", "base-url", "region"],
     boolean: ["help"],
   });
   const usage = usageTokenSubcommand(action);
@@ -586,17 +591,21 @@ async function handleTokenPointsOrReceive(
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const region = getSingleString(args, "region");
   const tokens = await collectTokensFromArgs(args, usage, false);
   const { payload } = await requestJson(`${baseUrl}/token/${action}`, {
     method: "POST",
-    headers: buildAuthorizationForTokens(tokens),
+    headers: {
+      ...buildAuthorizationForTokens(tokens),
+      ...(region ? { "X-Region": region } : {}),
+    },
   });
   console.log(JSON.stringify(unwrapBody(payload), null, 2));
 }
 
 async function handleTokenAddOrRemove(argv: string[], action: "add" | "remove"): Promise<void> {
   const args = minimist(argv, {
-    string: ["token", "token-file", "base-url"],
+    string: ["token", "token-file", "base-url", "region"],
     boolean: ["help"],
   });
   const usage = usageTokenSubcommand(action);
@@ -605,11 +614,12 @@ async function handleTokenAddOrRemove(argv: string[], action: "add" | "remove"):
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const region = getSingleString(args, "region");
   const tokens = await collectTokensFromArgs(args, usage, true);
   const { payload } = await requestJson(`${baseUrl}/token/pool/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tokens }),
+    body: JSON.stringify({ tokens, ...(region ? { region } : {}) }),
   });
   console.log(JSON.stringify(unwrapBody(payload), null, 2));
 }
@@ -1196,6 +1206,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      "  --region <region>        Required for non-pool token (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],
@@ -1208,6 +1219,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],
@@ -1220,6 +1232,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],
@@ -1232,6 +1245,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      "  --region <region>        Required for add (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],

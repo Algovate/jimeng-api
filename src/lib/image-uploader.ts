@@ -37,7 +37,7 @@ export async function uploadImageBuffer(
     logger.info(`开始上传图片Buffer... (isInternational: ${regionInfo.isInternational})`);
 
     // 第一步：获取上传令牌
-    const tokenResult = await request("post", "/mweb/v1/get_upload_token", refreshToken, {
+    const tokenResult = await request("post", "/mweb/v1/get_upload_token", refreshToken, regionInfo, {
       data: {
         scene: 2, // AIGC 图片上传场景
       },

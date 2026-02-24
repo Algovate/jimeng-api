@@ -1,4 +1,4 @@
-import { request } from "@/api/controllers/core.ts";
+import { RegionInfo, request } from "@/api/controllers/core.ts";
 import logger from "@/lib/logger.ts";
 
 /**
@@ -74,11 +74,11 @@ export function extractVideoUrl(item: any): string | null {
  * @param refreshToken 刷新令牌
  * @returns 高质量视频URL，失败时返回 null
  */
-export async function fetchHighQualityVideoUrl(itemId: string, refreshToken: string): Promise<string | null> {
+export async function fetchHighQualityVideoUrl(itemId: string, refreshToken: string, regionInfo: RegionInfo): Promise<string | null> {
   try {
     logger.info(`尝试获取高质量视频下载URL，item_id: ${itemId}`);
 
-    const result = await request("post", "/mweb/v1/get_local_item_list", refreshToken, {
+    const result = await request("post", "/mweb/v1/get_local_item_list", refreshToken, regionInfo, {
       data: {
         item_id_list: [itemId],
         pack_item_opt: {

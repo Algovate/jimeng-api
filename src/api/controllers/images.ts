@@ -3,7 +3,7 @@ import _ from "lodash";
 import APIException from "@/lib/exceptions/APIException.ts";
 import EX from "@/api/consts/exceptions.ts";
 import util from "@/lib/util.ts";
-import { getCredit, receiveCredit, request, parseRegionFromToken, getAssistantId, checkImageContent, RegionInfo } from "./core.ts";
+import { getCredit, receiveCredit, request, getAssistantId, checkImageContent, RegionInfo } from "./core.ts";
 import logger from "@/lib/logger.ts";
 import { SmartPoller, PollingStatus } from "@/lib/smart-poller.ts";
 import { DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_MODEL_US, IMAGE_MODEL_MAP, IMAGE_MODEL_MAP_US, IMAGE_MODEL_MAP_ASIA } from "@/api/consts/common.ts";
@@ -96,9 +96,9 @@ export async function generateImageComposition(
     negativePrompt?: string;
     intelligentRatio?: boolean;
   },
-  refreshToken: string
+  refreshToken: string,
+  regionInfo: RegionInfo
 ) {
-  const regionInfo = parseRegionFromToken(refreshToken);
   const { model, userModel } = getModel(_model, regionInfo);
 
   // 使用 payload-builder 处理分辨率
@@ -110,11 +110,11 @@ export async function generateImageComposition(
 
   // 获取积分
   try {
-    const { totalCredit } = await getCredit(refreshToken);
+    const { totalCredit } = await getCredit(refreshToken, regionInfo);
     if (totalCredit <= 0) {
       logger.info("积分为 0，尝试收取今日积分...");
       try {
-        await receiveCredit(refreshToken);
+        await receiveCredit(refreshToken, regionInfo);
       } catch (receiveError) {
         logger.warn(`收取积分失败: ${receiveError.message}. 这可能是因为: 1) 今日已收取过积分, 2) 账户受到风控限制, 3) 需要在官网手动收取首次积分`);
       }
@@ -219,6 +219,7 @@ export async function generateImageComposition(
     "post",
     "/mweb/v1/aigc_draft/generate",
     refreshToken,
+    regionInfo,
     { data: requestData, headers: { Referer: imageReferer } }
   );
 
@@ -238,7 +239,7 @@ export async function generateImageComposition(
   });
 
   const { result: pollingResult, data: finalTaskInfo } = await poller.poll(async () => {
-    const response = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, {
+    const response = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, regionInfo, {
       data: {
         history_ids: [historyId],
         image_info: {
@@ -309,13 +310,13 @@ export async function generateImages(
     negativePrompt?: string;
     intelligentRatio?: boolean;
   },
-  refreshToken: string
+  refreshToken: string,
+  regionInfo: RegionInfo
 ) {
-  const regionInfo = parseRegionFromToken(refreshToken);
   const { model, userModel } = getModel(_model, regionInfo);
   logger.info(`使用模型: ${userModel} 映射模型: ${model} 分辨率: ${resolution} 比例: ${ratio} 精细度: ${sampleStrength} 智能比例: ${intelligentRatio}`);
 
-  return await generateImagesInternal(userModel, prompt, { ratio, resolution, sampleStrength, negativePrompt, intelligentRatio }, refreshToken);
+  return await generateImagesInternal(userModel, prompt, { ratio, resolution, sampleStrength, negativePrompt, intelligentRatio }, refreshToken, regionInfo);
 }
 
 /**
@@ -337,9 +338,9 @@ async function generateImagesInternal(
     negativePrompt?: string;
     intelligentRatio?: boolean;
   },
-  refreshToken: string
+  refreshToken: string,
+  regionInfo: RegionInfo
 ) {
-  const regionInfo = parseRegionFromToken(refreshToken);
   const { model, userModel } = getModel(_model, regionInfo);
 
   // 使用 payload-builder 处理分辨率
@@ -347,11 +348,11 @@ async function generateImagesInternal(
   logResolutionInfo(userModel, resolutionResult, regionInfo);
 
   // 获取积分
-  const { totalCredit, giftCredit, purchaseCredit, vipCredit } = await getCredit(refreshToken);
+  const { totalCredit, giftCredit, purchaseCredit, vipCredit } = await getCredit(refreshToken, regionInfo);
   if (totalCredit <= 0) {
     logger.info("积分为 0，尝试收取今日积分...");
     try {
-      await receiveCredit(refreshToken);
+      await receiveCredit(refreshToken, regionInfo);
       logger.info("积分收取成功，继续生成图片");
     } catch (receiveError) {
       logger.warn(`收取积分失败: ${receiveError.message}. 这可能是因为: 1) 今日已收取过积分, 2) 账户受到风控限制, 3) 需要在官网手动收取首次积分`);
@@ -371,7 +372,7 @@ async function generateImagesInternal(
   );
 
   if (isJimeng4xMultiImage) {
-    return await generateJimeng4xMultiImages(userModel, prompt, { ratio, resolution, sampleStrength, negativePrompt, intelligentRatio }, refreshToken);
+    return await generateJimeng4xMultiImages(userModel, prompt, { ratio, resolution, sampleStrength, negativePrompt, intelligentRatio }, refreshToken, regionInfo);
   }
 
   const componentId = util.uuid();
@@ -425,6 +426,7 @@ async function generateImagesInternal(
     "post",
     "/mweb/v1/aigc_draft/generate",
     refreshToken,
+    regionInfo,
     { data: requestData, headers: { Referer: imageReferer } }
   );
 
@@ -442,7 +444,7 @@ async function generateImagesInternal(
   });
 
   const { result: pollingResult, data: finalTaskInfo } = await poller.poll(async () => {
-    const response = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, {
+    const response = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, regionInfo, {
       data: {
         history_ids: [historyId],
         image_info: {
@@ -516,9 +518,9 @@ async function generateJimeng4xMultiImages(
     negativePrompt?: string;
     intelligentRatio?: boolean;
   },
-  refreshToken: string
+  refreshToken: string,
+  regionInfo: RegionInfo
 ) {
-  const regionInfo = parseRegionFromToken(refreshToken);
   const { model, userModel } = getModel(_model, regionInfo);
 
   // 使用 payload-builder 处理分辨率
@@ -580,6 +582,7 @@ async function generateJimeng4xMultiImages(
     "post",
     "/mweb/v1/aigc_draft/generate",
     refreshToken,
+    regionInfo,
     { data: requestData, headers: { Referer: imageReferer } }
   );
 
@@ -599,7 +602,7 @@ async function generateJimeng4xMultiImages(
   });
 
   const { result: pollingResult, data: finalTaskInfo } = await poller.poll(async () => {
-    const result = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, {
+    const result = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, regionInfo, {
       data: {
         history_ids: [historyId],
         image_info: {

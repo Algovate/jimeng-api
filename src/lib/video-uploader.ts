@@ -43,7 +43,7 @@ export async function uploadVideoBuffer(
     logger.info(`开始上传视频Buffer... (size=${fileSize}, isInternational=${regionInfo.isInternational})`);
 
     // 第一步：获取上传令牌
-    const tokenResult = await request("post", "/mweb/v1/get_upload_token", refreshToken, {
+    const tokenResult = await request("post", "/mweb/v1/get_upload_token", refreshToken, regionInfo, {
       data: {
         scene: 1, // VOD 视频上传场景
       },

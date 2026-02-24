@@ -6,7 +6,7 @@ import APIException from "@/lib/exceptions/APIException.ts";
 
 import EX from "@/api/consts/exceptions.ts";
 import util from "@/lib/util.ts";
-import { getCredit, receiveCredit, request, parseRegionFromToken, getAssistantId, checkImageContent, RegionInfo } from "./core.ts";
+import { getCredit, receiveCredit, request, getAssistantId, checkImageContent, RegionInfo } from "./core.ts";
 import logger from "@/lib/logger.ts";
 import { SmartPoller, PollingStatus } from "@/lib/smart-poller.ts";
 import { DEFAULT_ASSISTANT_ID_CN, DEFAULT_ASSISTANT_ID_US, DEFAULT_ASSISTANT_ID_HK, DEFAULT_ASSISTANT_ID_JP, DEFAULT_ASSISTANT_ID_SG, DEFAULT_VIDEO_MODEL, DRAFT_VERSION, DRAFT_VERSION_OMNI, OMNI_BENEFIT_TYPE, OMNI_BENEFIT_TYPE_FAST, VIDEO_MODEL_MAP, VIDEO_MODEL_MAP_US, VIDEO_MODEL_MAP_ASIA } from "@/api/consts/common.ts";
@@ -173,10 +173,9 @@ export async function generateVideo(
     httpRequest?: any;
     functionMode?: string;
   },
-  refreshToken: string
+  refreshToken: string,
+  regionInfo: RegionInfo
 ) {
-  // 检测区域
-  const regionInfo = parseRegionFromToken(refreshToken);
   const { isInternational } = regionInfo;
 
   logger.info(`视频生成区域检测: isInternational=${isInternational}`);
@@ -235,11 +234,11 @@ export async function generateVideo(
   logger.info(`使用模型: ${_model} 映射模型: ${model} 比例: ${ratio} 分辨率: ${supportsResolution ? resolution : '不支持'} 时长: ${actualDuration}s`);
 
   // 检查积分
-  const { totalCredit } = await getCredit(refreshToken);
+  const { totalCredit } = await getCredit(refreshToken, regionInfo);
   if (totalCredit <= 0) {
     logger.info("积分为 0，尝试收取今日积分...");
     try {
-      await receiveCredit(refreshToken);
+      await receiveCredit(refreshToken, regionInfo);
     } catch (receiveError) {
       logger.warn(`收取积分失败: ${receiveError.message}. 这可能是因为: 1) 今日已收取过积分, 2) 账户受到风控限制, 3) 需要在官网手动收取首次积分`);
       throw new APIException(EX.API_VIDEO_GENERATION_FAILED,
@@ -849,6 +848,7 @@ export async function generateVideo(
     "post",
     "/mweb/v1/aigc_draft/generate",
     refreshToken,
+    regionInfo,
     {
       ...requestData,
       headers: { Referer: videoReferer },
@@ -880,7 +880,7 @@ export async function generateVideo(
     pollAttempts++;
 
     // 使用标准API请求方式
-    const result = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, {
+    const result = await request("post", "/mweb/v1/get_history_by_ids", refreshToken, regionInfo, {
       data: {
         history_ids: [historyId],
       },
@@ -940,7 +940,7 @@ export async function generateVideo(
 
   if (itemId) {
     try {
-      const hqVideoUrl = await fetchHighQualityVideoUrl(String(itemId), refreshToken);
+      const hqVideoUrl = await fetchHighQualityVideoUrl(String(itemId), refreshToken, regionInfo);
       if (hqVideoUrl) {
         logger.info(`视频生成成功（高质量），URL: ${hqVideoUrl}，总耗时: ${pollingResult.elapsedTime}秒`);
         return hqVideoUrl;

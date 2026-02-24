@@ -32,6 +32,8 @@ import {
   RETRY_CONFIG
 } from "@/api/consts/common.ts";
 
+export type RegionCode = "cn" | "us" | "hk" | "jp" | "sg";
+
 // 模型名称
 const MODEL_NAME = "jimeng";
 // 设备ID
@@ -87,6 +89,52 @@ export interface RegionInfo {
   isCN: boolean;
 }
 
+const REGION_PREFIX_PATTERN = /^(us|hk|jp|sg)-/i;
+
+export function parseRegionCode(value: unknown): RegionCode | null {
+  if (!_.isString(value)) return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "cn" || normalized === "us" || normalized === "hk" || normalized === "jp" || normalized === "sg") {
+    return normalized as RegionCode;
+  }
+  return null;
+}
+
+export function buildRegionInfo(regionCode: RegionCode): RegionInfo {
+  return {
+    isUS: regionCode === "us",
+    isHK: regionCode === "hk",
+    isJP: regionCode === "jp",
+    isSG: regionCode === "sg",
+    isInternational: regionCode !== "cn",
+    isCN: regionCode === "cn",
+  };
+}
+
+export function parseRegionFromHeader(headerValue: unknown): RegionInfo | null {
+  const regionCode = parseRegionCode(headerValue);
+  if (!regionCode) return null;
+  return buildRegionInfo(regionCode);
+}
+
+export function regionInfoToRegionCode(regionInfo: RegionInfo): RegionCode {
+  if (regionInfo.isUS) return "us";
+  if (regionInfo.isHK) return "hk";
+  if (regionInfo.isJP) return "jp";
+  if (regionInfo.isSG) return "sg";
+  return "cn";
+}
+
+export function assertTokenWithoutRegionPrefix(rawToken: string): void {
+  const { token } = parseProxyFromToken(rawToken);
+  if (REGION_PREFIX_PATTERN.test(token.trim())) {
+    throw new APIException(
+      EX.API_REQUEST_FAILED,
+      "token 前缀协议已移除，请使用纯 token，并通过 token-pool 的 region 字段或请求头 X-Region 指定区域"
+    );
+  }
+}
+
 export interface TokenWithProxy {
   token: string;
   proxyUrl: string | null;
@@ -109,22 +157,10 @@ export function parseProxyFromToken(rawToken: string): TokenWithProxy {
 }
 
 export function parseRegionFromToken(refreshToken: string): RegionInfo {
-  const { token: parsedToken } = parseProxyFromToken(refreshToken);
-  const token = parsedToken.toLowerCase();
-  const isUS = token.startsWith('us-');
-  const isHK = token.startsWith('hk-');
-  const isJP = token.startsWith('jp-');
-  const isSG = token.startsWith('sg-');
-  const isInternational = isUS || isHK || isJP || isSG;
-
-  return {
-    isUS,
-    isHK,
-    isJP,
-    isSG,
-    isInternational,
-    isCN: !isInternational
-  };
+  throw new APIException(
+    EX.API_REQUEST_FAILED,
+    "parseRegionFromToken 已废弃。token 前缀协议已移除，请改为显式传入 region 上下文"
+  );
 }
 
 /**
@@ -134,8 +170,8 @@ export function parseRegionFromToken(refreshToken: string): RegionInfo {
  * @param cnPath 国内站路径
  * @returns Referer URL
  */
-export function getRefererByRegion(refreshToken: string, cnPath: string): string {
-  const { isInternational } = parseRegionFromToken(refreshToken);
+export function getRefererByRegion(regionInfo: RegionInfo, cnPath: string): string {
+  const { isInternational } = regionInfo;
   return isInternational
     ? "https://dreamina.capcut.com/"
     : `https://jimeng.jianying.com${cnPath}`;
@@ -160,10 +196,8 @@ export function getAssistantId(regionInfo: RegionInfo): number {
  */
 export function generateCookie(refreshToken: string) {
   const { token: tokenWithRegion } = parseProxyFromToken(refreshToken);
-  const { isUS, isHK, isJP, isSG } = parseRegionFromToken(tokenWithRegion);
-  const token = (isUS || isHK || isJP || isSG)
-    ? tokenWithRegion.substring(3)
-    : tokenWithRegion;
+  assertTokenWithoutRegionPrefix(tokenWithRegion);
+  const token = tokenWithRegion;
   const sidGuardTtl = 5184000;
   const sidGuardIssuedAt = util.unixTimestamp();
   const sidGuardExpireAt = encodeURIComponent(
@@ -187,12 +221,12 @@ export function generateCookie(refreshToken: string) {
  *
  * @param refreshToken 用于刷新access_token的refresh_token
  */
-export async function getCredit(refreshToken: string) {
-  const referer = getRefererByRegion(refreshToken, "/ai-tool/image/generate");
+export async function getCredit(refreshToken: string, regionInfo: RegionInfo) {
+  const referer = getRefererByRegion(regionInfo, "/ai-tool/image/generate");
 
   const {
     credit: { gift_credit, purchase_credit, vip_credit }
-  } = await request("POST", "/commerce/v1/benefits/user_credit", refreshToken, {
+  } = await request("POST", "/commerce/v1/benefits/user_credit", refreshToken, regionInfo, {
     data: {},
     headers: {
       Referer: referer,
@@ -213,10 +247,9 @@ export async function getCredit(refreshToken: string) {
  *
  * @param refreshToken 用于刷新access_token的refresh_token
  */
-export async function receiveCredit(refreshToken: string) {
+export async function receiveCredit(refreshToken: string, regionInfo: RegionInfo) {
   logger.info("正在尝试收取今日积分...")
-  const referer = getRefererByRegion(refreshToken, "/ai-tool/home");
-  const regionInfo = parseRegionFromToken(refreshToken);
+  const referer = getRefererByRegion(regionInfo, "/ai-tool/home");
   const timeZone = regionInfo.isUS
     ? "America/New_York"
     : regionInfo.isHK
@@ -227,7 +260,7 @@ export async function receiveCredit(refreshToken: string) {
           ? "Asia/Singapore"
           : "Asia/Shanghai";
 
-  const { receive_quota } = await request("POST", "/commerce/v1/benefits/credit_receive", refreshToken, {
+  const { receive_quota } = await request("POST", "/commerce/v1/benefits/credit_receive", refreshToken, regionInfo, {
     data: {
       time_zone: timeZone
     },
@@ -251,12 +284,13 @@ export async function request(
   method: string,
   uri: string,
   refreshToken: string,
+  regionInfo: RegionInfo,
   options: AxiosRequestConfig & { noDefaultParams?: boolean } = {}
 ) {
   const { token: tokenWithRegion, proxyUrl } = parseProxyFromToken(refreshToken);
-  const regionInfo = parseRegionFromToken(tokenWithRegion);
+  assertTokenWithoutRegionPrefix(tokenWithRegion);
   const { isUS, isHK, isJP, isSG } = regionInfo;
-  await acquireToken(regionInfo.isInternational ? tokenWithRegion.substring(3) : tokenWithRegion);
+  await acquireToken(tokenWithRegion);
   const deviceTime = util.unixTimestamp();
   const sign = util.md5(
     `9e2c|${uri.slice(-7)}|${PLATFORM_CODE}|${VERSION_CODE}|${deviceTime}||11ac`
@@ -461,7 +495,7 @@ export async function checkImageContent(
   logger.info(`开始图片内容安全检测: ${imageUri}`);
 
   try {
-    await request("post", "/mweb/v1/algo_proxy", refreshToken, {
+    await request("post", "/mweb/v1/algo_proxy", refreshToken, regionInfo, {
       params: {
         babi_param: babiParam,
       },
@@ -531,7 +565,8 @@ export async function checkImageContent(
 export async function uploadFile(
   refreshToken: string,
   fileUrl: string,
-  isVideoImage: boolean = false
+  isVideoImage: boolean = false,
+  regionInfo: RegionInfo = buildRegionInfo("cn")
 ) {
   try {
     logger.info(`开始上传文件: ${fileUrl}, 视频图像模式: ${isVideoImage}`);
@@ -578,6 +613,7 @@ export async function uploadFile(
       'POST',
       '/mweb/v1/get_upload_image_proof',
       refreshToken,
+      regionInfo,
       {
         data: {
           scene: isVideoImage ? 'video_cover' : 'aigc_image',
@@ -672,12 +708,13 @@ export function tokenSplit(authorization: string) {
 /**
  * 获取Token存活状态
  */
-export async function getTokenLiveStatus(refreshToken: string) {
+export async function getTokenLiveStatus(refreshToken: string, regionInfo: RegionInfo) {
   try {
     const result = await request(
       "POST",
       "/passport/account/info/v2",
       refreshToken,
+      regionInfo,
       {
         params: {
           account_sdk_source: "web",

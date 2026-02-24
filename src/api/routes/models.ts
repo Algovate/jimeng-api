@@ -7,7 +7,10 @@ export default {
 
     get: {
         '/models': async (request: Request) => {
-            const result = await getLiveModels(request.headers.authorization);
+            const result = await getLiveModels(
+                request.headers.authorization,
+                request.headers["x-region"] as string | undefined
+            );
             return {
                 source: result.source,
                 data: result.data
