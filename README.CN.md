@@ -204,6 +204,64 @@ jimeng video generate \
 - `upstream`：实时从上游模型配置接口拉取
 - `fallback`：上游拉取失败时，回退到内置模型映射
 
+### MCP (`jimeng-mcp`)
+
+项目内置了一个独立的 MCP stdio 服务。
+
+#### 构建与启动
+
+```bash
+# 构建所有入口（包含 MCP）
+npm run build
+
+# 启动 MCP（stdio）
+npm run mcp:start
+```
+
+#### 环境变量
+
+- `JIMENG_API_BASE_URL`（默认：`http://127.0.0.1:5100`）
+- `JIMENG_API_TOKEN`（可选，默认 Bearer token）
+- `MCP_HTTP_TIMEOUT_MS`（默认：`120000`）
+- `MCP_ENABLE_ADVANCED_TOOLS`（默认：`true`，控制 `edit_image` 和 `generate_video`）
+- `MCP_REQUIRE_RUN_CONFIRM`（默认：`true`，生成类工具需 `confirm: "RUN"`）
+
+#### MCP 工具列表
+
+- `health_check`
+- `list_models`
+- `generate_image`
+- `edit_image`（当前阶段仅支持 URL 输入）
+- `generate_video`（当前阶段仅支持 `first_last_frames` 模式）
+
+#### Cursor MCP 配置示例
+
+```json
+{
+  "mcpServers": {
+    "jimeng-api": {
+      "command": "node",
+      "args": ["/absolute/path/to/jimeng-api/dist/mcp/index.js"],
+      "env": {
+        "JIMENG_API_BASE_URL": "http://127.0.0.1:5100",
+        "MCP_ENABLE_ADVANCED_TOOLS": "true",
+        "MCP_REQUIRE_RUN_CONFIRM": "true"
+      }
+    }
+  }
+}
+```
+
+#### 冒烟检查
+
+```bash
+# 先确保 jimeng-api 服务已启动
+npm run mcp:smoke
+
+# 可选：校验 confirm 防误触发机制
+node scripts/mcp-smoke.mjs --strict
+```
+
 #### 方式三：Docker部署（推荐）
 
 ##### 🚀 快速启动

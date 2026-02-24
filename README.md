@@ -201,6 +201,64 @@ jimeng image generate \
 - `upstream`: fetched in real time from upstream model config endpoints
 - `fallback`: upstream fetch failed, fallback to built-in model mappings
 
+### MCP (`jimeng-mcp`)
+
+This project includes a standalone MCP server over stdio.
+
+#### Build and run
+
+```bash
+# Build all entries, including MCP
+npm run build
+
+# Start MCP server (stdio)
+npm run mcp:start
+```
+
+#### Environment variables
+
+- `JIMENG_API_BASE_URL` (default: `http://127.0.0.1:5100`)
+- `JIMENG_API_TOKEN` (optional default bearer token)
+- `MCP_HTTP_TIMEOUT_MS` (default: `120000`)
+- `MCP_ENABLE_ADVANCED_TOOLS` (default: `true`, controls `edit_image` and `generate_video`)
+- `MCP_REQUIRE_RUN_CONFIRM` (default: `true`, generation tools require `confirm: "RUN"`)
+
+#### Exposed MCP tools
+
+- `health_check`
+- `list_models`
+- `generate_image`
+- `edit_image` (URL inputs only in current phase)
+- `generate_video` (`first_last_frames` mode only in current phase)
+
+#### Cursor MCP example
+
+```json
+{
+  "mcpServers": {
+    "jimeng-api": {
+      "command": "node",
+      "args": ["/absolute/path/to/jimeng-api/dist/mcp/index.js"],
+      "env": {
+        "JIMENG_API_BASE_URL": "http://127.0.0.1:5100",
+        "MCP_ENABLE_ADVANCED_TOOLS": "true",
+        "MCP_REQUIRE_RUN_CONFIRM": "true"
+      }
+    }
+  }
+}
+```
+
+#### Smoke check
+
+```bash
+# Ensure jimeng-api service is running first
+npm run mcp:smoke
+
+# Optional: verify confirm guard behavior
+node scripts/mcp-smoke.mjs --strict
+```
+
 #### Method 3: Docker Deployment (recommended)
 
 ##### 🚀 Quick Start
