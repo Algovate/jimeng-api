@@ -25,23 +25,19 @@ function normalizeOmniPayload(args: GenerateVideoOmniArgs): {
 } {
   const imageSlotUrls = collectIndexedSlotUrls(args, "image_file", MAX_IMAGE_SLOTS);
   const videoSlotUrls = collectIndexedSlotUrls(args, "video_file", MAX_VIDEO_SLOTS);
-  const imageUrls = uniqueStrings(collectStringArray(args.image_urls));
-  const videoUrls = uniqueStrings(collectStringArray(args.video_urls));
-  const imageFiles = uniqueStrings(collectStringArray(args.image_files));
-  const videoFiles = uniqueStrings(collectStringArray(args.video_files));
-  const filePaths = uniqueStrings([
+  const imageUrls = uniqueStrings([
+    ...collectStringArray(args.image_urls),
     ...collectStringArray(args.file_paths),
     ...collectStringArray(args.filePaths)
   ]);
+  const videoUrls = uniqueStrings(collectStringArray(args.video_urls));
+  const imageFiles = uniqueStrings(collectStringArray(args.image_files));
+  const videoFiles = uniqueStrings(collectStringArray(args.video_files));
 
   assertLocalFilesExist(imageFiles);
   assertLocalFilesExist(videoFiles);
 
   const body: JsonObject = buildBaseVideoPayload(args, "omni_reference");
-
-  if (filePaths.length > 0) {
-    body.filePaths = filePaths;
-  }
 
   for (const [slot, url] of imageSlotUrls) {
     body[`image_file_${slot}`] = url;
