@@ -128,6 +128,15 @@ npm run dev
 # 查看命令树
 jimeng --help
 
+# 列出可用模型
+jimeng models list
+
+# 查看模型详细信息（类型/描述/能力）
+jimeng models list --verbose
+
+# 以 JSON 查看模型数据
+jimeng models list --json
+
 # 启动服务
 jimeng serve
 
@@ -153,6 +162,10 @@ jimeng video generate \
   --prompt "让画面主体自然行走" \
   --image ./first-frame.png
 ```
+
+`/v1/models` 响应包含 `source` 字段：
+- `upstream`：实时从上游模型配置接口拉取
+- `fallback`：上游拉取失败时，回退到内置模型映射
 
 #### 方式三：Docker部署（推荐）
 

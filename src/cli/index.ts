@@ -18,12 +18,26 @@ function usageRoot(): string {
     "",
     "Commands:",
     "  serve                            Start jimeng-api service",
+    "  models list                      List available models",
     "  token check                      Validate session ids via /token/check",
     "  image generate                   Generate image from text",
     "  image edit                       Edit image(s) with prompt",
     "  video generate                   Generate video from image(s)",
     "",
     "Run `jimeng <command> --help` for command details.",
+  ].join("\n");
+}
+
+function usageModelsList(): string {
+  return [
+    "Usage:",
+    "  jimeng models list [options]",
+    "",
+    "Options:",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --verbose                Print rich model fields",
+    "  --json                   Print full JSON response",
+    "  --help                   Show help",
   ].join("\n");
 }
 
@@ -391,6 +405,61 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
   if (invalid > 0) process.exit(2);
 }
 
+async function handleModelsList(argv: string[]): Promise<void> {
+  const args = minimist(argv, {
+    string: ["base-url"],
+    boolean: ["help", "json", "verbose"],
+  });
+
+  if (args.help) {
+    console.log(usageModelsList());
+    return;
+  }
+
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const endpoint = `${baseUrl}/v1/models`;
+  const { payload } = await requestJson(endpoint, { method: "GET" });
+  const normalized = unwrapBody(payload);
+
+  if (args.json) {
+    console.log(JSON.stringify(normalized, null, 2));
+    return;
+  }
+
+  const data =
+    normalized && typeof normalized === "object" && Array.isArray((normalized as JsonRecord).data)
+      ? ((normalized as JsonRecord).data as unknown[])
+      : [];
+
+  if (data.length === 0) {
+    fail(`No models found in response: ${JSON.stringify(normalized)}`);
+  }
+
+  if (args.verbose) {
+    for (const item of data) {
+      if (!item || typeof item !== "object") continue;
+      const model = item as JsonRecord;
+      const id = typeof model.id === "string" ? model.id : "";
+      if (!id) continue;
+      const modelType = typeof model.model_type === "string" ? model.model_type : "-";
+      const description = typeof model.description === "string" ? model.description : "-";
+      const capabilities = Array.isArray(model.capabilities)
+        ? model.capabilities.filter((cap): cap is string => typeof cap === "string").join(",")
+        : "-";
+      console.log(`${id}\ttype=${modelType}\tdesc=${description}\tcapabilities=${capabilities}`);
+    }
+    return;
+  }
+
+  for (const item of data) {
+    if (!item || typeof item !== "object") continue;
+    const id = (item as JsonRecord).id;
+    if (typeof id === "string" && id.length > 0) {
+      console.log(id);
+    }
+  }
+}
+
 async function handleImageGenerate(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
@@ -693,13 +762,18 @@ async function run(): Promise<void> {
   }
 
   if (command === "serve") {
-    const { startService } = await import("@/lib/start-service.ts");
+    const { startService } = await import("../lib/start-service.ts");
     await startService();
     return;
   }
 
   if (command === "token" && subcommand === "check") {
     await handleTokenCheck(rest);
+    return;
+  }
+
+  if (command === "models" && subcommand === "list") {
+    await handleModelsList(rest);
     return;
   }
 

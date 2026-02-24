@@ -35,6 +35,7 @@ function run(args, { expectCode = 0, mustInclude = [] } = {}) {
 
 function main() {
   run(["--help"], { mustInclude: ["jimeng <command>"] });
+  run(["models", "list", "--help"], { mustInclude: ["jimeng models list"] });
   run(["token", "check", "--help"], { mustInclude: ["jimeng token check"] });
   run(["image", "generate", "--help"], { mustInclude: ["jimeng image generate"] });
   run(["video", "generate", "--help"], { mustInclude: ["jimeng video generate"] });

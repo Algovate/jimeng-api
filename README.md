@@ -126,6 +126,15 @@ After building, you can use the unified CLI command:
 # Show command tree
 jimeng --help
 
+# List available models
+jimeng models list
+
+# List models with rich metadata
+jimeng models list --verbose
+
+# List models as JSON
+jimeng models list --json
+
 # Start service
 jimeng serve
 
@@ -151,6 +160,10 @@ jimeng video generate \
   --prompt "The character walks forward naturally" \
   --image ./first-frame.png
 ```
+
+`/v1/models` includes a `source` field:
+- `upstream`: fetched in real time from upstream model config endpoints
+- `fallback`: upstream fetch failed, fallback to built-in model mappings
 
 #### Method 3: Docker Deployment (recommended)
 
