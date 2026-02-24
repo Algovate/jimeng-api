@@ -73,7 +73,7 @@ function buildModelItem(modelId: string, meta?: UpstreamModelMeta): ModelItem {
   };
   if (meta?.reqKey) item.model_req_key = meta.reqKey;
   if (meta?.modelName) item.model_name = meta.modelName;
-  if (meta?.capabilities.length) item.capabilities = Array.from(new Set(meta.capabilities)).sort();
+  if (meta?.capabilities?.length) item.capabilities = Array.from(new Set(meta.capabilities)).sort();
 
   if (meta?.modelTip) {
     item.description = meta.modelTip;
