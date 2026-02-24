@@ -10,151 +10,78 @@ import minimist from "minimist";
 const DEFAULT_BASE_URL = "http://127.0.0.1:5100";
 
 type JsonRecord = Record<string, unknown>;
+type CliHandler = (argv: string[]) => Promise<void>;
+type UsageSection = { title: string; lines: string[] };
+
+const BASE_URL_OPTION = "  --base-url <url>         API base URL, default http://127.0.0.1:5100";
+const HELP_OPTION = "  --help                   Show help";
+
+function buildUsageText(
+  usageLine: string,
+  options: string[],
+  sections?: UsageSection[]
+): string {
+  const lines = [
+    "Usage:",
+    usageLine,
+    "",
+    "Options:",
+    ...options,
+  ];
+  if (sections && sections.length > 0) {
+    for (const section of sections) {
+      lines.push("", section.title, ...section.lines);
+    }
+  }
+  return lines.join("\n");
+}
 
 function usageRoot(): string {
+  const commandLines = ROOT_COMMAND_ENTRIES.map(
+    (entry) => `  ${entry.path.padEnd(32)}${entry.description}`
+  );
   return [
     "Usage:",
     "  jimeng <command> [subcommand] [options]",
     "",
     "Commands:",
-    "  serve                            Start jimeng-api service",
-    "  models list                      List available models",
-    "  token <subcommand>               Token management commands",
-    "  image generate                   Generate image from text",
-    "  image edit                       Edit image(s) with prompt",
-    "  video generate                   Generate video from image(s)",
+    ...commandLines,
     "",
-    "Run `jimeng <command> --help` for command details.",
+    ...ROOT_HELP_HINT_LINES,
   ].join("\n");
 }
 
 function usageModelsList(): string {
-  return [
-    "Usage:",
-    "  jimeng models list [options]",
-    "",
-    "Options:",
+  return buildUsageText("  jimeng models list [options]", [
     "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
     "  --verbose                Print rich model fields",
     "  --json                   Print full JSON response",
-    "  --help                   Show help",
-  ].join("\n");
+    HELP_OPTION,
+  ]);
 }
 
-function usageTokenCheck(): string {
-  return [
-    "Usage:",
-    "  jimeng token check --token <token> [--token <token> ...] [options]",
-    "",
-    "Options:",
-    "  --token <token>          Token, can be repeated",
-    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenList(): string {
-  return [
-    "Usage:",
-    "  jimeng token list [options]",
-    "",
-    "Options:",
-    "  --json                   Output raw JSON",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenAction(action: "points" | "receive"): string {
-  return [
-    "Usage:",
-    `  jimeng token ${action} [options]`,
-    "",
-    "Options:",
-    "  --token <token>          Token, can be repeated",
-    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenModify(action: "add" | "remove"): string {
-  return [
-    "Usage:",
-    `  jimeng token ${action} --token <token> [--token <token> ...] [options]`,
-    "",
-    "Options:",
-    "  --token <token>          Token, can be repeated",
-    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenToggle(action: "enable" | "disable"): string {
-  return [
-    "Usage:",
-    `  jimeng token ${action} --token <token> [options]`,
-    "",
-    "Options:",
-    "  --token <token>          Required, a single token",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenPoolAction(action: "pool-check" | "pool-reload"): string {
-  return [
-    "Usage:",
-    `  jimeng token ${action} [options]`,
-    "",
-    "Options:",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
-}
-
-function usageTokenPool(): string {
-  return [
-    "Usage:",
-    "  jimeng token pool [options]",
-    "",
-    "Options:",
-    "  --json                   Output raw JSON",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
-    "  --help                   Show help",
-  ].join("\n");
+function usageTokenSubcommand(name: TokenSubcommandName): string {
+  const subcommand = TOKEN_SUBCOMMANDS_BY_NAME[name];
+  return buildUsageText(subcommand.usageLine, subcommand.options, subcommand.sections);
 }
 
 function usageTokenRoot(): string {
+  const subcommandLines = TOKEN_SUBCOMMANDS.map(
+    (subcommand) => `  ${subcommand.name.padEnd(24)}${subcommand.description}`
+  );
   return [
     "Usage:",
     "  jimeng token <subcommand> [options]",
     "",
     "Subcommands:",
-    "  list                     List token pool entries",
-    "  check                    Validate tokens via /token/check",
-    "  points                   Query token points (fallback to server token-pool)",
-    "  receive                  Receive token credits (fallback to server token-pool)",
-    "  add                      Add token(s) into token-pool",
-    "  remove                   Remove token(s) from token-pool",
-    "  enable                   Enable one token in token-pool",
-    "  disable                  Disable one token in token-pool",
-    "  pool                     Show token-pool summary and entries",
-    "  pool-check               Trigger token-pool health check",
-    "  pool-reload              Reload token-pool from disk",
+    ...subcommandLines,
     "",
     "Run `jimeng token <subcommand> --help` for details.",
   ].join("\n");
 }
 
 function usageImageGenerate(): string {
-  return [
-    "Usage:",
-    "  jimeng image generate --prompt <text> [options]",
-    "",
-    "Options:",
+  return buildUsageText("  jimeng image generate --prompt <text> [options]", [
     "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
     "  --model <model>          Default jimeng-4.5",
@@ -163,18 +90,16 @@ function usageImageGenerate(): string {
     "  --negative-prompt <text> Optional",
     "  --sample-strength <num>  Optional, 0-1",
     "  --intelligent-ratio      Optional, enable intelligent ratio",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    BASE_URL_OPTION,
     "  --output-dir <dir>       Default ./pic/cli-image-generate",
-    "  --help                   Show help",
-  ].join("\n");
+    HELP_OPTION,
+  ]);
 }
 
 function usageImageEdit(): string {
-  return [
-    "Usage:",
+  return buildUsageText(
     "  jimeng image edit --prompt <text> --image <path_or_url> [--image <path_or_url> ...] [options]",
-    "",
-    "Options:",
+    [
     "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
     "  --image <path_or_url>    Required, can be repeated (1-10)",
@@ -184,37 +109,67 @@ function usageImageEdit(): string {
     "  --negative-prompt <text> Optional",
     "  --sample-strength <num>  Optional, 0-1",
     "  --intelligent-ratio      Optional, enable intelligent ratio",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    BASE_URL_OPTION,
     "  --output-dir <dir>       Default ./pic/cli-image-edit",
-    "  --help                   Show help",
-    "",
-    "Notes:",
-    "  - Image sources must be all local files or all URLs in one command.",
-  ].join("\n");
+    HELP_OPTION,
+    ],
+    [
+      {
+        title: "Notes:",
+        lines: ["  - Image sources must be all local files or all URLs in one command."],
+      },
+    ]
+  );
 }
 
 function usageVideoGenerate(): string {
-  return [
-    "Usage:",
-    "  jimeng video generate --prompt <text> --image <path> [options]",
-    "",
-    "Options:",
+  return buildUsageText("  jimeng video generate --prompt <text> [options]", [
     "  --token <token>          Optional, override server token-pool",
     "  --prompt <text>          Required",
-    "  --image <path>           Required, first frame",
-    "  --image2 <path>          Optional, last frame",
-    "  --model <model>          Default jimeng-video-3.0",
+    "  --mode <mode>            Optional, text_to_video (default), image_to_video, first_last_frames, or omni_reference",
+    "  --image-file <input>     Image input, can be repeated (path or URL)",
+    "  --video-file <input>     Video input, can be repeated (path or URL, omni only)",
+    "  --image-file-1 <input>   Explicit image slot (1-9) for omni_reference",
+    "  --image-file-2 ... -9    More explicit image slots for omni_reference",
+    "  --video-file-1 <input>   Explicit video slot (1-3) for omni_reference",
+    "  --video-file-2 ... -3    More explicit video slots for omni_reference",
+    "  --model <model>          Default jimeng-video-3.0 (jimeng-video-seedance-2.0-fast in omni_reference)",
     "  --ratio <ratio>          Default 1:1",
     "  --resolution <res>       Default 720p",
     "  --duration <seconds>     Default 5",
-    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    BASE_URL_OPTION,
     "  --output-dir <dir>       Default ./pic/cli-video-generate",
-    "  --help                   Show help",
-  ].join("\n");
+    HELP_OPTION,
+  ], [
+    {
+      title: "Examples:",
+      lines: [
+        "  jimeng video generate --mode text_to_video --prompt \"A fox runs in snow\"",
+        "  jimeng video generate --mode image_to_video --prompt \"Camera slowly pushes in\" --image-file ./first.png",
+        "  jimeng video generate --mode first_last_frames --prompt \"Transition day to night\" --image-file ./first.png --image-file ./last.png",
+        "  jimeng video generate --mode omni_reference --model jimeng-video-seedance-2.0-fast --prompt \"Use @image_file_1 for character and @video_file_1 for motion\" --image-file ./character.png --video-file ./motion.mp4",
+      ],
+    },
+    {
+      title: "Notes:",
+      lines: [
+        "  - text_to_video: no image/video input allowed.",
+        "  - image_to_video: exactly 1 --image-file input, no --video-file.",
+        "  - first_last_frames: 1-2 --image-file inputs, no --video-file.",
+        "  - omni_reference: 1-9 images and 0-3 videos (at least one material).",
+        "  - omni_reference supports model jimeng-video-seedance-2.0 or jimeng-video-seedance-2.0-fast.",
+        "  - Use @image_file_N / @video_file_N in prompt for omni_reference.",
+      ],
+    },
+  ]);
 }
 
 function fail(message: string): never {
   throw new Error(message);
+}
+
+function failWithUsage(reason: string, usage: string): never {
+  fail(`${reason}\n\n${usage}`);
 }
 
 function getSingleString(args: Record<string, unknown>, key: string): string | undefined {
@@ -281,6 +236,22 @@ function detectImageMime(filePath: string): string {
       return "image/webp";
     case ".gif":
       return "image/gif";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+function detectVideoUploadMime(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case ".mp4":
+      return "video/mp4";
+    case ".mov":
+      return "video/quicktime";
+    case ".webm":
+      return "video/webm";
+    case ".m4v":
+      return "video/x-m4v";
     default:
       return "application/octet-stream";
   }
@@ -536,13 +507,14 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
     string: ["token", "token-file", "base-url"],
     boolean: ["help"],
   });
+  const usage = usageTokenSubcommand("check");
   if (args.help) {
-    console.log(usageTokenCheck());
+    console.log(usage);
     return;
   }
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
-  const tokens = await collectTokensFromArgs(args, usageTokenCheck(), true);
+  const tokens = await collectTokensFromArgs(args, usage, true);
   console.log(`Checking ${tokens.length} token(s) against ${baseUrl}/token/check`);
 
   let invalid = 0;
@@ -577,8 +549,9 @@ async function handleTokenList(argv: string[]): Promise<void> {
     string: ["base-url"],
     boolean: ["help", "json"],
   });
+  const usage = usageTokenSubcommand("list");
   if (args.help) {
-    console.log(usageTokenList());
+    console.log(usage);
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
@@ -607,12 +580,13 @@ async function handleTokenPointsOrReceive(
     string: ["token", "token-file", "base-url"],
     boolean: ["help"],
   });
+  const usage = usageTokenSubcommand(action);
   if (args.help) {
-    console.log(usageTokenAction(action));
+    console.log(usage);
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
-  const tokens = await collectTokensFromArgs(args, usageTokenAction(action), false);
+  const tokens = await collectTokensFromArgs(args, usage, false);
   const { payload } = await requestJson(`${baseUrl}/token/${action}`, {
     method: "POST",
     headers: buildAuthorizationForTokens(tokens),
@@ -625,12 +599,13 @@ async function handleTokenAddOrRemove(argv: string[], action: "add" | "remove"):
     string: ["token", "token-file", "base-url"],
     boolean: ["help"],
   });
+  const usage = usageTokenSubcommand(action);
   if (args.help) {
-    console.log(usageTokenModify(action));
+    console.log(usage);
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
-  const tokens = await collectTokensFromArgs(args, usageTokenModify(action), true);
+  const tokens = await collectTokensFromArgs(args, usage, true);
   const { payload } = await requestJson(`${baseUrl}/token/pool/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -644,13 +619,14 @@ async function handleTokenEnableOrDisable(argv: string[], action: "enable" | "di
     string: ["token", "base-url"],
     boolean: ["help"],
   });
+  const usage = usageTokenSubcommand(action);
   if (args.help) {
-    console.log(usageTokenToggle(action));
+    console.log(usage);
     return;
   }
   const token = getSingleString(args, "token");
   if (!token) {
-    fail(`Missing required --token.\n\n${usageTokenToggle(action)}`);
+    failWithUsage("Missing required --token.", usage);
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
   const { payload } = await requestJson(`${baseUrl}/token/pool/${action}`, {
@@ -666,8 +642,9 @@ async function handleTokenPool(argv: string[]): Promise<void> {
     string: ["base-url"],
     boolean: ["help", "json"],
   });
+  const usage = usageTokenSubcommand("pool");
   if (args.help) {
-    console.log(usageTokenPool());
+    console.log(usage);
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
@@ -692,8 +669,9 @@ async function handleTokenPoolCheckOrReload(
     string: ["base-url"],
     boolean: ["help"],
   });
+  const usage = usageTokenSubcommand(action);
   if (args.help) {
-    console.log(usageTokenPoolAction(action));
+    console.log(usage);
     return;
   }
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
@@ -855,7 +833,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageImageEdit());
   const sources = toStringList(args.image);
   if (sources.length === 0) {
-    fail(`Missing required --image.\n\n${usageImageEdit()}`);
+    failWithUsage("Missing required --image.", usageImageEdit());
   }
   if (sources.length > 10) {
     fail("At most 10 images are supported for image edit.");
@@ -956,13 +934,163 @@ async function handleImageEdit(argv: string[]): Promise<void> {
   });
 }
 
+type VideoCliMode = "text_to_video" | "image_to_video" | "first_last_frames" | "omni_reference";
+
+const VIDEO_SUPPORTED_MODES: VideoCliMode[] = [
+  "text_to_video",
+  "image_to_video",
+  "first_last_frames",
+  "omni_reference",
+];
+const VIDEO_OMNI_SUPPORTED_MODELS = new Set(["jimeng-video-seedance-2.0", "jimeng-video-seedance-2.0-fast"]);
+const VIDEO_OMNI_IMAGE_SLOT_KEYS = Array.from({ length: 9 }, (_, i) => `image-file-${i + 1}`);
+const VIDEO_OMNI_VIDEO_SLOT_KEYS = Array.from({ length: 3 }, (_, i) => `video-file-${i + 1}`);
+
+type VideoInputPlan = {
+  repeatedImageInputs: string[];
+  repeatedVideoInputs: string[];
+  explicitImageSlots: Array<{ slot: number; input: string }>;
+  explicitVideoSlots: Array<{ slot: number; input: string }>;
+  totalImageInputs: number;
+  totalVideoInputs: number;
+};
+
+function parseVideoCliMode(args: Record<string, unknown>, usage: string): VideoCliMode {
+  const cliModeRaw = getSingleString(args, "mode") || "text_to_video";
+  if (!VIDEO_SUPPORTED_MODES.includes(cliModeRaw as VideoCliMode)) {
+    failWithUsage(
+      `Invalid --mode: ${cliModeRaw}. Use text_to_video, image_to_video, first_last_frames, or omni_reference.`,
+      usage
+    );
+  }
+  return cliModeRaw as VideoCliMode;
+}
+
+function collectVideoInputPlan(args: Record<string, unknown>, usage: string): VideoInputPlan {
+  const repeatedImageInputs = toStringList(args["image-file"]);
+  const repeatedVideoInputs = toStringList(args["video-file"]);
+  const explicitImageSlots = VIDEO_OMNI_IMAGE_SLOT_KEYS
+    .map((key, i) => ({ slot: i + 1, input: getSingleString(args, key) }))
+    .filter((item): item is { slot: number; input: string } => Boolean(item.input));
+  const explicitVideoSlots = VIDEO_OMNI_VIDEO_SLOT_KEYS
+    .map((key, i) => ({ slot: i + 1, input: getSingleString(args, key) }))
+    .filter((item): item is { slot: number; input: string } => Boolean(item.input));
+
+  if (repeatedImageInputs.length > 0 && explicitImageSlots.length > 0) {
+    failWithUsage(
+      "Do not mix repeated --image-file with explicit --image-file-N in one command.",
+      usage
+    );
+  }
+  if (repeatedVideoInputs.length > 0 && explicitVideoSlots.length > 0) {
+    failWithUsage(
+      "Do not mix repeated --video-file with explicit --video-file-N in one command.",
+      usage
+    );
+  }
+
+  return {
+    repeatedImageInputs,
+    repeatedVideoInputs,
+    explicitImageSlots,
+    explicitVideoSlots,
+    totalImageInputs: repeatedImageInputs.length + explicitImageSlots.length,
+    totalVideoInputs: repeatedVideoInputs.length + explicitVideoSlots.length,
+  };
+}
+
+function validateVideoModeAndModel(cliMode: VideoCliMode, model: string, plan: VideoInputPlan, usage: string): void {
+  if (cliMode === "omni_reference" && !VIDEO_OMNI_SUPPORTED_MODELS.has(model)) {
+    failWithUsage(
+      `omni_reference mode requires --model jimeng-video-seedance-2.0 or jimeng-video-seedance-2.0-fast (current: ${model}).`,
+      usage
+    );
+  }
+
+  if (cliMode === "text_to_video") {
+    if (plan.totalImageInputs + plan.totalVideoInputs > 0) {
+      failWithUsage("text_to_video mode does not accept --image-file or --video-file inputs.", usage);
+    }
+    return;
+  }
+  if (cliMode === "image_to_video") {
+    if (plan.totalVideoInputs > 0) {
+      failWithUsage("image_to_video mode does not accept --video-file.", usage);
+    }
+    if (plan.totalImageInputs !== 1) {
+      failWithUsage("image_to_video mode requires exactly one --image-file input.", usage);
+    }
+    return;
+  }
+  if (cliMode === "first_last_frames") {
+    if (plan.totalVideoInputs > 0) {
+      failWithUsage("first_last_frames mode does not accept --video-file.", usage);
+    }
+    if (plan.totalImageInputs === 0) {
+      failWithUsage("first_last_frames mode requires at least one --image-file input.", usage);
+    }
+    if (plan.totalImageInputs > 2) {
+      failWithUsage("first_last_frames mode supports at most 2 image inputs.", usage);
+    }
+    return;
+  }
+
+  if (plan.totalImageInputs + plan.totalVideoInputs === 0) {
+    failWithUsage("omni_reference mode requires at least one --image-file or --video-file input.", usage);
+  }
+  if (plan.totalImageInputs > 9) {
+    failWithUsage("omni_reference supports at most 9 image inputs.", usage);
+  }
+  if (plan.totalVideoInputs > 3) {
+    failWithUsage("omni_reference supports at most 3 video inputs.", usage);
+  }
+}
+
+async function appendVideoInput(
+  form: FormData,
+  fieldName: string,
+  input: string,
+  mediaType: "image" | "video"
+): Promise<void> {
+  if (isHttpUrl(input)) {
+    form.append(fieldName, input);
+    return;
+  }
+  const filePath = path.resolve(input);
+  if (!(await pathExists(filePath))) {
+    fail(`Input file not found for ${fieldName}: ${filePath}`);
+  }
+  const buffer = await readFile(filePath);
+  const mime = mediaType === "image" ? detectImageMime(filePath) : detectVideoUploadMime(filePath);
+  form.append(fieldName, new Blob([buffer], { type: mime }), path.basename(filePath));
+}
+
+async function appendVideoInputs(form: FormData, plan: VideoInputPlan): Promise<void> {
+  for (let i = 0; i < plan.repeatedImageInputs.length; i += 1) {
+    await appendVideoInput(form, `image_file_${i + 1}`, plan.repeatedImageInputs[i], "image");
+  }
+  for (let i = 0; i < plan.repeatedVideoInputs.length; i += 1) {
+    await appendVideoInput(form, `video_file_${i + 1}`, plan.repeatedVideoInputs[i], "video");
+  }
+  for (const slot of plan.explicitImageSlots) {
+    await appendVideoInput(form, `image_file_${slot.slot}`, slot.input, "image");
+  }
+  for (const slot of plan.explicitVideoSlots) {
+    await appendVideoInput(form, `video_file_${slot.slot}`, slot.input, "video");
+  }
+}
+
 async function handleVideoGenerate(argv: string[]): Promise<void> {
+  const usage = usageVideoGenerate();
   const args = minimist(argv, {
     string: [
       "token",
       "prompt",
-      "image",
-      "image2",
+      "mode",
+      "image-file",
+      "video-file",
+      ...VIDEO_OMNI_IMAGE_SLOT_KEYS,
+      ...VIDEO_OMNI_VIDEO_SLOT_KEYS,
       "model",
       "ratio",
       "resolution",
@@ -974,56 +1102,33 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   });
 
   if (args.help) {
-    console.log(usageVideoGenerate());
+    console.log(usage);
     return;
   }
 
   const token = getSingleString(args, "token");
-  const prompt = ensurePrompt(getSingleString(args, "prompt"), usageVideoGenerate());
-  const image = getSingleString(args, "image");
-  if (!image) {
-    fail(`Missing required --image.\n\n${usageVideoGenerate()}`);
-  }
+  const prompt = ensurePrompt(getSingleString(args, "prompt"), usage);
+  const cliMode = parseVideoCliMode(args, usage);
+  const inputPlan = collectVideoInputPlan(args, usage);
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
   const outputDir = getSingleString(args, "output-dir") || "./pic/cli-video-generate";
-  const model = getSingleString(args, "model") || "jimeng-video-3.0";
+  const model = getSingleString(args, "model")
+    || (cliMode === "omni_reference" ? "jimeng-video-seedance-2.0-fast" : "jimeng-video-3.0");
+  validateVideoModeAndModel(cliMode, model, inputPlan, usage);
+  const functionMode = cliMode === "omni_reference" ? "omni_reference" : "first_last_frames";
   const ratio = getSingleString(args, "ratio") || "1:1";
   const resolution = getSingleString(args, "resolution") || "720p";
   const duration = getSingleString(args, "duration") || "5";
 
-  const imagePath = path.resolve(image);
-  if (!(await pathExists(imagePath))) {
-    fail(`Image file not found: ${imagePath}`);
-  }
-
   const form = new FormData();
   form.append("prompt", prompt);
   form.append("model", model);
+  form.append("functionMode", functionMode);
   form.append("ratio", ratio);
   form.append("resolution", resolution);
   form.append("duration", duration);
-
-  const imageBuffer = await readFile(imagePath);
-  form.append(
-    "image_file_1",
-    new Blob([imageBuffer], { type: detectImageMime(imagePath) }),
-    path.basename(imagePath)
-  );
-
-  const image2 = getSingleString(args, "image2");
-  if (image2) {
-    const imagePath2 = path.resolve(image2);
-    if (!(await pathExists(imagePath2))) {
-      fail(`Image file not found: ${imagePath2}`);
-    }
-    const imageBuffer2 = await readFile(imagePath2);
-    form.append(
-      "image_file_2",
-      new Blob([imageBuffer2], { type: detectImageMime(imagePath2) }),
-      path.basename(imagePath2)
-    );
-  }
+  await appendVideoInputs(form, inputPlan);
 
   const endpoint = `${baseUrl}/v1/videos/generations`;
   console.log(`Calling: ${endpoint}`);
@@ -1050,94 +1155,290 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   console.log(`- ${filePath}`);
 }
 
+function isHelpKeyword(value: string | undefined): boolean {
+  return value === "--help" || value === "-h" || value === "help";
+}
+
+type TokenSubcommandDef = {
+  name: TokenSubcommandName;
+  description: string;
+  usageLine: string;
+  options: string[];
+  sections?: UsageSection[];
+  handler: CliHandler;
+};
+
+type TokenSubcommandName =
+  | "list"
+  | "check"
+  | "points"
+  | "receive"
+  | "add"
+  | "remove"
+  | "enable"
+  | "disable"
+  | "pool"
+  | "pool-check"
+  | "pool-reload";
+
+const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
+  {
+    name: "list",
+    description: "List token pool entries",
+    usageLine: "  jimeng token list [options]",
+    options: ["  --json                   Output raw JSON", BASE_URL_OPTION, HELP_OPTION],
+    handler: handleTokenList,
+  },
+  {
+    name: "check",
+    description: "Validate tokens via /token/check",
+    usageLine: "  jimeng token check --token <token> [--token <token> ...] [options]",
+    options: [
+      "  --token <token>          Token, can be repeated",
+      "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      BASE_URL_OPTION,
+      HELP_OPTION,
+    ],
+    handler: handleTokenCheck,
+  },
+  {
+    name: "points",
+    description: "Query token points (fallback to server token-pool)",
+    usageLine: "  jimeng token points [options]",
+    options: [
+      "  --token <token>          Token, can be repeated",
+      "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      BASE_URL_OPTION,
+      HELP_OPTION,
+    ],
+    handler: async (argv) => handleTokenPointsOrReceive(argv, "points"),
+  },
+  {
+    name: "receive",
+    description: "Receive token credits (fallback to server token-pool)",
+    usageLine: "  jimeng token receive [options]",
+    options: [
+      "  --token <token>          Token, can be repeated",
+      "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      BASE_URL_OPTION,
+      HELP_OPTION,
+    ],
+    handler: async (argv) => handleTokenPointsOrReceive(argv, "receive"),
+  },
+  {
+    name: "add",
+    description: "Add token(s) into token-pool",
+    usageLine: "  jimeng token add --token <token> [--token <token> ...] [options]",
+    options: [
+      "  --token <token>          Token, can be repeated",
+      "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      BASE_URL_OPTION,
+      HELP_OPTION,
+    ],
+    handler: async (argv) => handleTokenAddOrRemove(argv, "add"),
+  },
+  {
+    name: "remove",
+    description: "Remove token(s) from token-pool",
+    usageLine: "  jimeng token remove --token <token> [--token <token> ...] [options]",
+    options: [
+      "  --token <token>          Token, can be repeated",
+      "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+      BASE_URL_OPTION,
+      HELP_OPTION,
+    ],
+    handler: async (argv) => handleTokenAddOrRemove(argv, "remove"),
+  },
+  {
+    name: "enable",
+    description: "Enable one token in token-pool",
+    usageLine: "  jimeng token enable --token <token> [options]",
+    options: ["  --token <token>          Required, a single token", BASE_URL_OPTION, HELP_OPTION],
+    handler: async (argv) => handleTokenEnableOrDisable(argv, "enable"),
+  },
+  {
+    name: "disable",
+    description: "Disable one token in token-pool",
+    usageLine: "  jimeng token disable --token <token> [options]",
+    options: ["  --token <token>          Required, a single token", BASE_URL_OPTION, HELP_OPTION],
+    handler: async (argv) => handleTokenEnableOrDisable(argv, "disable"),
+  },
+  {
+    name: "pool",
+    description: "Show token-pool summary and entries",
+    usageLine: "  jimeng token pool [options]",
+    options: ["  --json                   Output raw JSON", BASE_URL_OPTION, HELP_OPTION],
+    handler: handleTokenPool,
+  },
+  {
+    name: "pool-check",
+    description: "Trigger token-pool health check",
+    usageLine: "  jimeng token pool-check [options]",
+    options: [BASE_URL_OPTION, HELP_OPTION],
+    handler: async (argv) => handleTokenPoolCheckOrReload(argv, "pool-check"),
+  },
+  {
+    name: "pool-reload",
+    description: "Reload token-pool from disk",
+    usageLine: "  jimeng token pool-reload [options]",
+    options: [BASE_URL_OPTION, HELP_OPTION],
+    handler: async (argv) => handleTokenPoolCheckOrReload(argv, "pool-reload"),
+  },
+];
+
+const TOKEN_SUBCOMMANDS_BY_NAME: Record<TokenSubcommandName, TokenSubcommandDef> = Object.fromEntries(
+  TOKEN_SUBCOMMANDS.map((subcommand) => [subcommand.name, subcommand])
+) as Record<TokenSubcommandName, TokenSubcommandDef>;
+
+function buildHandlersMap(
+  subcommands: Array<{ name: string; handler: CliHandler }>
+): Record<string, CliHandler> {
+  return Object.fromEntries(subcommands.map((item) => [item.name, item.handler]));
+}
+
+type CommandSubcommandDef = {
+  name: string;
+  description: string;
+  handler: CliHandler;
+};
+
+type CommandSpec = {
+  name: string;
+  description: string;
+  handler?: CliHandler;
+  subcommands?: CommandSubcommandDef[];
+  usage?: () => string;
+  showAsGrouped?: boolean;
+};
+
+const COMMAND_SPECS: CommandSpec[] = [
+  {
+    name: "serve",
+    description: "Start jimeng-api service",
+    handler: async () => {
+      const { startService } = await import("../lib/start-service.ts");
+      await startService();
+    },
+  },
+  {
+    name: "models",
+    description: "Model commands",
+    subcommands: [{ name: "list", description: "List available models", handler: handleModelsList }],
+    usage: usageRoot,
+  },
+  {
+    name: "image",
+    description: "Image commands",
+    subcommands: [
+      { name: "generate", description: "Generate image from text", handler: handleImageGenerate },
+      { name: "edit", description: "Edit image(s) with prompt", handler: handleImageEdit },
+    ],
+    usage: usageRoot,
+  },
+  {
+    name: "video",
+    description: "Video commands",
+    subcommands: [
+      {
+        name: "generate",
+        description: "Generate video from multimodal references",
+        handler: handleVideoGenerate,
+      },
+    ],
+    usage: usageRoot,
+  },
+  {
+    name: "token",
+    description: "Token management commands",
+    subcommands: TOKEN_SUBCOMMANDS.map((subcommand) => ({
+      name: subcommand.name,
+      description: subcommand.description,
+      handler: subcommand.handler,
+    })),
+    usage: usageTokenRoot,
+    showAsGrouped: true,
+  },
+];
+
+const COMMAND_SPECS_BY_NAME: Record<string, CommandSpec> = Object.fromEntries(
+  COMMAND_SPECS.map((spec) => [spec.name, spec])
+);
+
+const ROOT_COMMAND_ENTRIES: Array<{ path: string; description: string }> = COMMAND_SPECS.flatMap((spec) => {
+  if (spec.handler) {
+    return [{ path: spec.name, description: spec.description }];
+  }
+  if (!spec.subcommands || spec.subcommands.length === 0) {
+    return [{ path: spec.name, description: spec.description }];
+  }
+  if (spec.showAsGrouped) {
+    return [{ path: `${spec.name} <subcommand>`, description: spec.description }];
+  }
+  return spec.subcommands.map((subcommand) => ({
+    path: `${spec.name} ${subcommand.name}`,
+    description: subcommand.description,
+  }));
+});
+
+const ROOT_HELP_HINT_LINES: string[] = [
+  "Run `jimeng <command> --help` for command details.",
+  ...COMMAND_SPECS
+    .filter((spec) => spec.showAsGrouped)
+    .map((spec) => `Run \`jimeng ${spec.name} --help\` for ${spec.name} subcommands.`),
+];
+
+async function dispatchSubcommand(
+  subcommand: string | undefined,
+  argv: string[],
+  handlers: Record<string, CliHandler>,
+  usage: string,
+  unknownLabel: string
+): Promise<boolean> {
+  if (!subcommand || isHelpKeyword(subcommand)) {
+    console.log(usage);
+    return true;
+  }
+  const handler = handlers[subcommand];
+  if (!handler) {
+    failWithUsage(`Unknown ${unknownLabel}: ${subcommand}`, usage);
+  }
+  await handler(argv);
+  return true;
+}
+
 async function run(): Promise<void> {
   const [command, subcommand, ...rest] = process.argv.slice(2);
 
-  if (!command || command === "--help" || command === "-h" || command === "help") {
+  if (!command || isHelpKeyword(command)) {
     console.log(usageRoot());
     return;
   }
+  const spec = COMMAND_SPECS_BY_NAME[command];
+  if (!spec) {
+    failWithUsage(`Unknown command: ${[command, subcommand].filter(Boolean).join(" ")}`, usageRoot());
+  }
 
-  if (command === "serve") {
-    const { startService } = await import("../lib/start-service.ts");
-    await startService();
+  if (spec.handler) {
+    await spec.handler(rest);
     return;
   }
 
-  if (command === "token") {
-    const tokenArgv = process.argv.slice(3);
-    if (!subcommand || subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
-      console.log(usageTokenRoot());
+  if (spec.subcommands) {
+    const handlers = buildHandlersMap(spec.subcommands);
+    if (
+      await dispatchSubcommand(
+        subcommand,
+        process.argv.slice(3),
+        handlers,
+        spec.usage ? spec.usage() : usageRoot(),
+        `${command} subcommand`
+      )
+    ) {
       return;
     }
-    if (subcommand === "list") {
-      await handleTokenList(tokenArgv);
-      return;
-    }
-    if (subcommand === "check") {
-      await handleTokenCheck(tokenArgv);
-      return;
-    }
-    if (subcommand === "points") {
-      await handleTokenPointsOrReceive(tokenArgv, "points");
-      return;
-    }
-    if (subcommand === "receive") {
-      await handleTokenPointsOrReceive(tokenArgv, "receive");
-      return;
-    }
-    if (subcommand === "add") {
-      await handleTokenAddOrRemove(tokenArgv, "add");
-      return;
-    }
-    if (subcommand === "remove") {
-      await handleTokenAddOrRemove(tokenArgv, "remove");
-      return;
-    }
-    if (subcommand === "enable") {
-      await handleTokenEnableOrDisable(tokenArgv, "enable");
-      return;
-    }
-    if (subcommand === "disable") {
-      await handleTokenEnableOrDisable(tokenArgv, "disable");
-      return;
-    }
-    if (subcommand === "pool") {
-      await handleTokenPool(tokenArgv);
-      return;
-    }
-    if (subcommand === "pool-check") {
-      await handleTokenPoolCheckOrReload(tokenArgv, "pool-check");
-      return;
-    }
-    if (subcommand === "pool-reload") {
-      await handleTokenPoolCheckOrReload(tokenArgv, "pool-reload");
-      return;
-    }
-    fail(`Unknown token subcommand: ${subcommand}\n\n${usageTokenRoot()}`);
   }
 
-  if (command === "models" && subcommand === "list") {
-    await handleModelsList(rest);
-    return;
-  }
-
-  if (command === "image" && subcommand === "generate") {
-    await handleImageGenerate(rest);
-    return;
-  }
-
-  if (command === "image" && subcommand === "edit") {
-    await handleImageEdit(rest);
-    return;
-  }
-
-  if (command === "video" && subcommand === "generate") {
-    await handleVideoGenerate(rest);
-    return;
-  }
-
-  fail(`Unknown command: ${[command, subcommand].filter(Boolean).join(" ")}\n\n${usageRoot()}`);
+  failWithUsage(`Unknown command: ${[command, subcommand].filter(Boolean).join(" ")}`, usageRoot());
 }
 
 run().catch((error) => {

@@ -165,10 +165,31 @@ jimeng image edit \
   --prompt "Enhance details and keep subject unchanged" \
   --image ./input.png
 
-# Video generation
+# Text-to-Video
 jimeng video generate \
+  --mode text_to_video \
+  --prompt "A fox runs through snow, cinematic camera movement"
+
+# Image-to-Video (single first frame)
+jimeng video generate \
+  --mode image_to_video \
   --prompt "The character walks forward naturally" \
-  --image ./first-frame.png
+  --image-file ./first-frame.png
+
+# First-Last Frame video
+jimeng video generate \
+  --mode first_last_frames \
+  --prompt "Transition from daytime city to night city" \
+  --image-file ./first-frame.png \
+  --image-file ./last-frame.png
+
+# Omni Reference video generation (mixed image/video materials)
+jimeng video generate \
+  --mode omni_reference \
+  --model jimeng-video-seedance-2.0-fast \
+  --prompt "@image_file_1 as character, motion from @video_file_1" \
+  --image-file ./character.png \
+  --video-file ./motion.mp4
 
 # Optional: override server token-pool selection
 jimeng image generate \
@@ -501,7 +522,7 @@ Generate a video from a text prompt (Text-to-Video) or from start/end frame imag
 > - **Important**: Once image input is provided (image-to-video or first-last frame video), the `ratio` parameter will be ignored, and the video aspect ratio will be determined by the input image's actual ratio. The `resolution` parameter remains effective.
 
 > **Omni Reference Mode** (New):
-> - Requires `functionMode=omni_reference` and `model=jimeng-video-seedance-2.0`.
+> - Requires `functionMode=omni_reference` and a Seedance Omni model (default `jimeng-video-seedance-2.0-fast`).
 > - **Material Limits**:
 >   - Up to **9 images** (`image_file_1` ~ `image_file_9`)
 >   - Up to **3 videos** (`video_file_1` ~ `video_file_3`)
@@ -572,12 +593,12 @@ curl -X POST http://localhost:5100/v1/videos/generations \
     "{\"model\": \"jimeng-video-3.0\", \"prompt\": \"A woman dancing in a garden\", \"ratio\": \"4:3\", \"duration\": 10, \"filePaths\": [\"https://example.com/your-image.jpg\"]}"
 
 # Example 5: Omni Reference mode - all local files
-# Requires jimeng-video-seedance-2.0 model
+# Requires a Seedance Omni model (default: jimeng-video-seedance-2.0-fast)
 # Note: Use --form-string for prompt containing @ references (curl -F interprets @ as file)
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1 as first frame, @image_file_2 as last frame, mimic motion from @video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \
@@ -590,7 +611,7 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1 as first frame, @image_file_2 as last frame, mimic motion from @video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \
@@ -603,7 +624,7 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1 as first frame, @image_file_2 as last frame, mimic motion from @video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \

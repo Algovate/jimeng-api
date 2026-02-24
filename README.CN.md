@@ -169,11 +169,35 @@ jimeng image edit \
   --prompt "提升画面细节，保持主体不变" \
   --image ./input.png
 
-# 图生视频
+# 文生视频
 jimeng video generate \
   --token YOUR_TOKEN \
+  --mode text_to_video \
+  --prompt "一只狐狸在雪地奔跑，电影感运镜"
+
+# 图生视频（单首帧）
+jimeng video generate \
+  --token YOUR_TOKEN \
+  --mode image_to_video \
   --prompt "让画面主体自然行走" \
-  --image ./first-frame.png
+  --image-file ./first-frame.png
+
+# 首尾帧视频
+jimeng video generate \
+  --token YOUR_TOKEN \
+  --mode first_last_frames \
+  --prompt "从白天城市过渡到夜景" \
+  --image-file ./first-frame.png \
+  --image-file ./last-frame.png
+
+# 全能参考视频（图片+视频混合素材）
+jimeng video generate \
+  --token YOUR_TOKEN \
+  --mode omni_reference \
+  --model jimeng-video-seedance-2.0-fast \
+  --prompt "@image_file_1作为角色，动作参考@video_file_1" \
+  --image-file ./character.png \
+  --video-file ./motion.mp4
 ```
 
 `/v1/models` 响应包含 `source` 字段：
@@ -487,7 +511,7 @@ A: 可以。现在支持直接上传本地文件。请参考上方的“本地�
 1. **文生视频（Text-to-Video）**：纯文本提示词，不使用任何图片
 2. **图生视频（Image-to-Video）**：使用单张图片作为首帧
 3. **首尾帧视频（First-Last Frame）**：使用两张图片分别作为首帧和尾帧
-4. **全能模式（Omni Reference）**（新）：混合图片+视频作为参考素材，在 prompt 中通过 `@字段名` 引用素材并描述其作用。仅 `jimeng-video-seedance-2.0` 模型支持。
+4. **全能模式（Omni Reference）**（新）：混合图片+视频作为参考素材，在 prompt 中通过 `@字段名` 引用素材并描述其作用。仅 `jimeng-video-seedance-2.0` 与 `jimeng-video-seedance-2.0-fast` 模型支持。
 
 > **模式检测**：系统根据图片的存在情况自动判断生成模式：
 > - **无图片** → 文生视频模式
@@ -510,7 +534,7 @@ A: 可以。现在支持直接上传本地文件。请参考上方的“本地�
 - `[file]` (file, 可选): 通过 `multipart/form-data` 方式上传的本地图片文件（最多2个），用于指定视频的**首帧**和**尾帧**。字段名可以任意，例如 `image1`。
 - `functionMode` (string, 可选): 生成模式。默认为 `"first_last_frames"`。支持的值：
   - `"first_last_frames"`（默认）：标准模式，根据图片数量自动判断文生视频/图生视频/首尾帧模式。
-  - `"omni_reference"`：全能模式。需要 `jimeng-video-seedance-2.0` 模型。通过指定字段名上传文件：`image_file_1` ~ `image_file_9`（图片）、`video_file_1` ~ `video_file_3`（视频），支持本地文件和网络URL。在 prompt 中使用 `@字段名` 引用素材。
+  - `"omni_reference"`：全能模式。需要 `jimeng-video-seedance-2.0` 或 `jimeng-video-seedance-2.0-fast` 模型。通过指定字段名上传文件：`image_file_1` ~ `image_file_9`（图片）、`video_file_1` ~ `video_file_3`（视频），支持本地文件和网络URL。在 prompt 中使用 `@字段名` 引用素材。
 - `response_format` (string, 可选): 响应格式，支持 `url` (默认) 或 `b64_json`。
 
 > **图片输入说明**:
@@ -520,7 +544,7 @@ A: 可以。现在支持直接上传本地文件。请参考上方的“本地�
 > - **重要**：一旦提供图片输入（图生视频或首尾帧视频），`ratio` 参数将被忽略，视频比例将由输入图片的实际比例决定。`resolution` 参数仍然有效。
 
 > **全能模式 (Omni Reference)**（新）:
-> - 需要 `functionMode=omni_reference` 且 `model=jimeng-video-seedance-2.0`。
+> - 需要 `functionMode=omni_reference` 且使用 Seedance 全能模型（默认 `jimeng-video-seedance-2.0-fast`）。
 > - **素材数量限制**：
 >   - 最多 **9 张图片**（`image_file_1` ~ `image_file_9`）
 >   - 最多 **3 个视频**（`video_file_1` ~ `video_file_3`）
@@ -601,12 +625,12 @@ curl -X POST http://localhost:5100/v1/videos/generations \
   }'
 
 # 示例5: 全能模式 - 全部本地文件
-# 需要 jimeng-video-seedance-2.0 模型
+# 需要 Seedance 全能模型（默认 jimeng-video-seedance-2.0-fast）
 # 注意: prompt 中包含 @ 引用时，使用 --form-string 代替 -F（curl -F 会将 @ 解释为文件）
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1作为首帧，@image_file_2作为尾帧，运动动作模仿@video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \
@@ -619,7 +643,7 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1作为首帧，@image_file_2作为尾帧，运动动作模仿@video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \
@@ -632,7 +656,7 @@ curl -X POST http://localhost:5100/v1/videos/generations \
 curl -X POST http://localhost:5100/v1/videos/generations \
   -H "Authorization: Bearer YOUR_SESSION_ID" \
   --form-string "prompt=@image_file_1作为首帧，@image_file_2作为尾帧，运动动作模仿@video_file" \
-  -F "model=jimeng-video-seedance-2.0" \
+  -F "model=jimeng-video-seedance-2.0-fast" \
   -F "functionMode=omni_reference" \
   -F "ratio=16:9" \
   -F "duration=5" \
