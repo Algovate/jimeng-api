@@ -252,10 +252,9 @@ class TokenPool {
       };
     }
 
-    const regionLockedCandidates = validCandidates.filter((item) => {
-      if (!item.enforceXRegion) return true;
-      return item.region === (xRegionCode || item.region);
-    });
+    const regionLockedCandidates = validCandidates.filter((item) =>
+      xRegionCode ? item.region === xRegionCode : true
+    );
     const regionReadyCandidates = regionLockedCandidates.filter((item) => Boolean(item.region));
     if (regionReadyCandidates.length === 0) {
       return { token: null, region: null, error: "missing_region", reason: "候选 token 缺少 region，或与 X-Region 不匹配" };
@@ -570,10 +569,7 @@ class TokenPool {
     return dynamic;
   }
 
-  private buildCandidateFromPoolEntry(
-    entry: TokenPoolEntry,
-    options: { enforceXRegion?: boolean } = {}
-  ): CandidateToken | null {
+  private buildCandidateFromPoolEntry(entry: TokenPoolEntry): CandidateToken | null {
     return {
       token: entry.token,
       region: entry.region || null,
@@ -583,15 +579,13 @@ class TokenPool {
       enabled: entry.enabled,
       live: entry.live !== false,
       prefixedToken: this.hasLegacyPrefix(entry.token),
-      enforceXRegion: options.enforceXRegion !== false,
     };
   }
 
   private buildCandidateFromAuthToken(token: string, xRegion: RegionCode | null): CandidateToken | null {
     const entry = this.entryMap.get(token);
     if (entry) {
-      // Auth token already bound to pool metadata; X-Region should not override/reject it.
-      return this.buildCandidateFromPoolEntry(entry, { enforceXRegion: false });
+      return this.buildCandidateFromPoolEntry(entry);
     }
     return {
       token,
@@ -602,7 +596,6 @@ class TokenPool {
       enabled: true,
       live: true,
       prefixedToken: this.hasLegacyPrefix(token),
-      enforceXRegion: true,
     };
   }
 
@@ -740,7 +733,6 @@ interface CandidateToken {
   enabled: boolean;
   live: boolean;
   prefixedToken: boolean;
-  enforceXRegion: boolean;
 }
 
 export default new TokenPool();

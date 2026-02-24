@@ -128,6 +128,7 @@ jimeng --help
 
 # List available models
 jimeng models list
+jimeng models list --region us
 
 # List models with rich metadata
 jimeng models list --verbose
@@ -151,33 +152,38 @@ jimeng token enable --token YOUR_TOKEN
 jimeng token disable --token YOUR_TOKEN
 
 # Points/receive (without --token, server token-pool is used)
-jimeng token points
-jimeng token receive
+jimeng token points --region us
+jimeng token receive --region us
 
 # Text to image
 jimeng image generate \
+  --region us \
   --prompt "A futuristic city night scene, cinematic, highly detailed" \
   --ratio "16:9" \
   --resolution "2k"
 
 # Image to image (local file)
 jimeng image edit \
+  --region us \
   --prompt "Enhance details and keep subject unchanged" \
   --image ./input.png
 
 # Text-to-Video
 jimeng video generate \
+  --region us \
   --mode text_to_video \
   --prompt "A fox runs through snow, cinematic camera movement"
 
 # Image-to-Video (single first frame)
 jimeng video generate \
+  --region us \
   --mode image_to_video \
   --prompt "The character walks forward naturally" \
   --image-file ./first-frame.png
 
 # First-Last Frame video
 jimeng video generate \
+  --region us \
   --mode first_last_frames \
   --prompt "Transition from daytime city to night city" \
   --image-file ./first-frame.png \
@@ -185,6 +191,7 @@ jimeng video generate \
 
 # Omni Reference video generation (mixed image/video materials)
 jimeng video generate \
+  --region us \
   --mode omni_reference \
   --model jimeng-video-seedance-2.0-fast \
   --prompt "@image_file_1 as character, motion from @video_file_1" \
@@ -196,6 +203,8 @@ jimeng image generate \
   --token YOUR_TOKEN \
   --prompt "A futuristic city night scene, cinematic, highly detailed"
 ```
+
+Note: when `--region` is passed (sent as `X-Region`), the server filters token candidates by that region. Tokens from other regions are excluded from selection.
 
 `/v1/models` includes a `source` field:
 - `upstream`: fetched in real time from upstream model config endpoints

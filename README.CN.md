@@ -134,6 +134,7 @@ jimeng --help
 
 # 列出可用模型
 jimeng models list
+jimeng models list --region us
 
 # 查看模型详细信息（类型/描述/能力）
 jimeng models list --verbose
@@ -163,6 +164,7 @@ jimeng token receive --region us
 # 文生图
 jimeng image generate \
   --token YOUR_TOKEN \
+  --region us \
   --prompt "一座未来城市夜景，电影感，高细节" \
   --ratio "16:9" \
   --resolution "2k"
@@ -170,18 +172,21 @@ jimeng image generate \
 # 图生图（本地图片）
 jimeng image edit \
   --token YOUR_TOKEN \
+  --region us \
   --prompt "提升画面细节，保持主体不变" \
   --image ./input.png
 
 # 文生视频
 jimeng video generate \
   --token YOUR_TOKEN \
+  --region us \
   --mode text_to_video \
   --prompt "一只狐狸在雪地奔跑，电影感运镜"
 
 # 图生视频（单首帧）
 jimeng video generate \
   --token YOUR_TOKEN \
+  --region us \
   --mode image_to_video \
   --prompt "让画面主体自然行走" \
   --image-file ./first-frame.png
@@ -189,6 +194,7 @@ jimeng video generate \
 # 首尾帧视频
 jimeng video generate \
   --token YOUR_TOKEN \
+  --region us \
   --mode first_last_frames \
   --prompt "从白天城市过渡到夜景" \
   --image-file ./first-frame.png \
@@ -197,12 +203,15 @@ jimeng video generate \
 # 全能参考视频（图片+视频混合素材）
 jimeng video generate \
   --token YOUR_TOKEN \
+  --region us \
   --mode omni_reference \
   --model jimeng-video-seedance-2.0-fast \
   --prompt "@image_file_1作为角色，动作参考@video_file_1" \
   --image-file ./character.png \
   --video-file ./motion.mp4
 ```
+
+说明：传入 `--region`（即请求头 `X-Region`）时，服务端会按该 region 过滤 token 候选；不匹配 region 的 token 不会被选中。
 
 `/v1/models` 响应包含 `source` 字段：
 - `upstream`：实时从上游模型配置接口拉取

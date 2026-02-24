@@ -117,15 +117,15 @@ function getRegionalMaps(region: RegionCode): Record<string, string>[] {
 function resolveRegion(authorization?: string, xRegion?: string): RegionCode {
   const token = resolveToken(authorization);
   const parsedXRegion = parseRegionCode(xRegion);
+  if (parsedXRegion) return parsedXRegion;
   if (token) {
     assertTokenWithoutRegionPrefix(token);
     const normalizedToken = parseProxyFromToken(token).token;
     const poolRegion = tokenPool.getTokenEntry(normalizedToken)?.region;
     if (poolRegion) return poolRegion;
-    if (parsedXRegion) return parsedXRegion;
     throw new Error("缺少 region。token 未在 pool 中注册时，/v1/models 需要提供请求头 X-Region");
   }
-  return parsedXRegion || "cn";
+  return "cn";
 }
 
 function buildReverseMap(region: RegionCode): Record<string, string> {

@@ -54,6 +54,7 @@ function usageRoot(): string {
 function usageModelsList(): string {
   return buildUsageText("  jimeng models list [options]", [
     "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
     "  --verbose                Print rich model fields",
     "  --json                   Print full JSON response",
     HELP_OPTION,
@@ -83,6 +84,7 @@ function usageTokenRoot(): string {
 function usageImageGenerate(): string {
   return buildUsageText("  jimeng image generate --prompt <text> [options]", [
     "  --token <token>          Optional, override server token-pool",
+    "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
     "  --prompt <text>          Required",
     "  --model <model>          Default jimeng-4.5",
     "  --ratio <ratio>          Default 1:1",
@@ -101,6 +103,7 @@ function usageImageEdit(): string {
     "  jimeng image edit --prompt <text> --image <path_or_url> [--image <path_or_url> ...] [options]",
     [
     "  --token <token>          Optional, override server token-pool",
+    "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
     "  --prompt <text>          Required",
     "  --image <path_or_url>    Required, can be repeated (1-10)",
     "  --model <model>          Default jimeng-4.5",
@@ -125,6 +128,7 @@ function usageImageEdit(): string {
 function usageVideoGenerate(): string {
   return buildUsageText("  jimeng video generate --prompt <text> [options]", [
     "  --token <token>          Optional, override server token-pool",
+    "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
     "  --prompt <text>          Required",
     "  --mode <mode>            Optional, text_to_video (default), image_to_video, first_last_frames, or omni_reference",
     "  --image-file <input>     Image input, can be repeated (path or URL)",
@@ -692,7 +696,7 @@ async function handleTokenPoolCheckOrReload(
 
 async function handleModelsList(argv: string[]): Promise<void> {
   const args = minimist(argv, {
-    string: ["base-url"],
+    string: ["base-url", "region"],
     boolean: ["help", "json", "verbose"],
   });
 
@@ -702,8 +706,14 @@ async function handleModelsList(argv: string[]): Promise<void> {
   }
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const region = getSingleString(args, "region");
   const endpoint = `${baseUrl}/v1/models`;
-  const { payload } = await requestJson(endpoint, { method: "GET" });
+  const { payload } = await requestJson(endpoint, {
+    method: "GET",
+    headers: {
+      ...(region ? { "X-Region": region } : {}),
+    },
+  });
   const normalized = unwrapBody(payload);
 
   if (args.json) {
@@ -749,6 +759,7 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
       "token",
+      "region",
       "prompt",
       "model",
       "ratio",
@@ -767,6 +778,7 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
   }
 
   const token = getSingleString(args, "token");
+  const region = getSingleString(args, "region");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageImageGenerate());
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
   const outputDir = getSingleString(args, "output-dir") || "./pic/cli-image-generate";
@@ -801,6 +813,7 @@ async function handleImageGenerate(argv: string[]): Promise<void> {
     headers: {
       "Content-Type": "application/json",
       ...buildAuthHeaders(token),
+      ...(region ? { "X-Region": region } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -821,6 +834,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
       "token",
+      "region",
       "prompt",
       "image",
       "model",
@@ -840,6 +854,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
   }
 
   const token = getSingleString(args, "token");
+  const region = getSingleString(args, "region");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usageImageEdit());
   const sources = toStringList(args.image);
   if (sources.length === 0) {
@@ -891,6 +906,7 @@ async function handleImageEdit(argv: string[]): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         ...buildAuthHeaders(token),
+        ...(region ? { "X-Region": region } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -926,7 +942,10 @@ async function handleImageEdit(argv: string[]): Promise<void> {
 
     const result = await requestJson(endpoint, {
       method: "POST",
-      headers: buildAuthHeaders(token),
+      headers: {
+        ...buildAuthHeaders(token),
+        ...(region ? { "X-Region": region } : {}),
+      },
       body: form,
     });
     payload = result.payload;
@@ -1095,6 +1114,7 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: [
       "token",
+      "region",
       "prompt",
       "mode",
       "image-file",
@@ -1117,6 +1137,7 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   }
 
   const token = getSingleString(args, "token");
+  const region = getSingleString(args, "region");
   const prompt = ensurePrompt(getSingleString(args, "prompt"), usage);
   const cliMode = parseVideoCliMode(args, usage);
   const inputPlan = collectVideoInputPlan(args, usage);
@@ -1144,7 +1165,10 @@ async function handleVideoGenerate(argv: string[]): Promise<void> {
   console.log(`Calling: ${endpoint}`);
   const { payload } = await requestJson(endpoint, {
     method: "POST",
-    headers: buildAuthHeaders(token),
+    headers: {
+      ...buildAuthHeaders(token),
+      ...(region ? { "X-Region": region } : {}),
+    },
     body: form,
   });
 
@@ -1219,7 +1243,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
-      "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
+      "  --region <region>        Filter tokens by region via X-Region (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],
@@ -1232,7 +1256,7 @@ const TOKEN_SUBCOMMANDS: TokenSubcommandDef[] = [
     options: [
       "  --token <token>          Token, can be repeated",
       "  --token-file <path>      Read tokens from file (one per line, # for comments)",
-      "  --region <region>        Optional X-Region header (cn/us/hk/jp/sg)",
+      "  --region <region>        Filter tokens by region via X-Region (cn/us/hk/jp/sg)",
       BASE_URL_OPTION,
       HELP_OPTION,
     ],

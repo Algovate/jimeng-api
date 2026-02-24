@@ -44,7 +44,8 @@ function resolveTokenContexts(
         }
         const tokens = authTokens.map((token) => {
             const entryRegion = tokenPool.getTokenEntry(token)?.region;
-            const regionCode = entryRegion || headerRegionCode;
+            if (headerRegionCode && entryRegion && entryRegion !== headerRegionCode) return null;
+            const regionCode = headerRegionCode || entryRegion;
             if (!regionCode) return null;
             return { token, region: buildRegionInfo(regionCode) };
         }).filter((item): item is { token: string; region: ReturnType<typeof buildRegionInfo> } => Boolean(item));
@@ -54,7 +55,11 @@ function resolveTokenContexts(
         return { tokens, error: null };
     }
     const poolEntries = tokenPool.getEntries(false)
-        .filter((item) => item.enabled && item.live !== false && item.region)
+        .filter((item) => {
+            if (!(item.enabled && item.live !== false && item.region)) return false;
+            if (headerRegionCode && item.region !== headerRegionCode) return false;
+            return true;
+        })
         .map((item) => ({ token: item.token, region: buildRegionInfo(item.region!) }));
     return {
         tokens: poolEntries,
