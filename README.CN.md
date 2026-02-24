@@ -120,6 +120,40 @@ npm run build
 npm run dev
 ```
 
+### CLI (`jimeng`)
+
+编译完成后，可使用统一 CLI 命令：
+
+```bash
+# 查看命令树
+jimeng --help
+
+# 启动服务
+jimeng serve
+
+# 检测 session id
+jimeng token check --session-id YOUR_SESSION_ID
+
+# 文生图
+jimeng image generate \
+  --session-id YOUR_SESSION_ID \
+  --prompt "一座未来城市夜景，电影感，高细节" \
+  --ratio "16:9" \
+  --resolution "2k"
+
+# 图生图（本地图片）
+jimeng image edit \
+  --session-id YOUR_SESSION_ID \
+  --prompt "提升画面细节，保持主体不变" \
+  --image ./input.png
+
+# 图生视频
+jimeng video generate \
+  --session-id YOUR_SESSION_ID \
+  --prompt "让画面主体自然行走" \
+  --image ./first-frame.png
+```
+
 #### 方式三：Docker部署（推荐）
 
 ##### 🚀 快速启动

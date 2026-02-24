@@ -118,6 +118,40 @@ npm run build
 npm run dev
 ```
 
+### CLI (`jimeng`)
+
+After building, you can use the unified CLI command:
+
+```bash
+# Show command tree
+jimeng --help
+
+# Start service
+jimeng serve
+
+# Check session id(s)
+jimeng token check --session-id YOUR_SESSION_ID
+
+# Text to image
+jimeng image generate \
+  --session-id YOUR_SESSION_ID \
+  --prompt "A futuristic city night scene, cinematic, highly detailed" \
+  --ratio "16:9" \
+  --resolution "2k"
+
+# Image to image (local file)
+jimeng image edit \
+  --session-id YOUR_SESSION_ID \
+  --prompt "Enhance details and keep subject unchanged" \
+  --image ./input.png
+
+# Video generation
+jimeng video generate \
+  --session-id YOUR_SESSION_ID \
+  --prompt "The character walks forward naturally" \
+  --image ./first-frame.png
+```
+
 #### Method 3: Docker Deployment (recommended)
 
 ##### 🚀 Quick Start

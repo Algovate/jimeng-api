@@ -4,6 +4,9 @@
   "description": "免费的AI图像和视频生成API服务 - 基于即梦AI的逆向工程实现，提供与OpenAI API兼容的接口格式",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "jimeng": "dist/cli/index.js"
+  },
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "directories": {
@@ -13,13 +16,14 @@
     "dist/"
   ],
   "scripts": {
-    "dev": "tsup src/index.ts --format cjs,esm --sourcemap --dts --watch --onSuccess \"node --enable-source-maps --no-node-snapshot dist/index.js\"",
+    "dev": "tsup src/index.ts src/cli/index.ts --format cjs,esm --sourcemap --dts --watch --onSuccess \"node --enable-source-maps --no-node-snapshot dist/index.js\"",
     "start": "node --enable-source-maps --no-node-snapshot dist/index.js",
-    "build": "tsup src/index.ts --format cjs,esm --sourcemap --dts --clean",
+    "build": "tsup src/index.ts src/cli/index.ts --format cjs,esm --sourcemap --dts --clean",
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "prettier --write \"src/**/*.{ts,js,json}\"",
     "type-check": "tsc --noEmit",
-    "token:check": "bash scripts/check-token.sh"
+    "token:check": "node --enable-source-maps --no-node-snapshot dist/cli/index.js token check",
+    "cli:smoke": "npm run build && node scripts/cli-smoke.mjs"
   },
   "author": "Jimeng API Team",
   "license": "GPL-3.0",
