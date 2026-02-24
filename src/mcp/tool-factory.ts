@@ -1,11 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ZodTypeAny } from "zod";
 
 import { toToolResult, withToolError } from "./result.ts";
 
 interface RegisterToolOptions {
   title: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: ZodTypeAny;
   annotations?: Record<string, unknown>;
 }
 
