@@ -19,7 +19,7 @@ function usageRoot(): string {
     "Commands:",
     "  serve                            Start jimeng-api service",
     "  models list                      List available models",
-    "  token check                      Validate token(s) via /token/check",
+    "  token <subcommand>               Token management commands",
     "  image generate                   Generate image from text",
     "  image edit                       Edit image(s) with prompt",
     "  video generate                   Generate video from image(s)",
@@ -44,16 +44,108 @@ function usageModelsList(): string {
 function usageTokenCheck(): string {
   return [
     "Usage:",
-    "  jimeng token check [options]",
+    "  jimeng token check --token <token> [--token <token> ...] [options]",
     "",
     "Options:",
     "  --token <token>          Token, can be repeated",
     "  --token-file <path>      Read tokens from file (one per line, # for comments)",
     "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
     "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenList(): string {
+  return [
+    "Usage:",
+    "  jimeng token list [options]",
     "",
-    "Env:",
-    "  JIMENG_TOKENS            Comma-separated tokens (used when args not provided)",
+    "Options:",
+    "  --json                   Output raw JSON",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenAction(action: "points" | "receive"): string {
+  return [
+    "Usage:",
+    `  jimeng token ${action} [options]`,
+    "",
+    "Options:",
+    "  --token <token>          Token, can be repeated",
+    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenModify(action: "add" | "remove"): string {
+  return [
+    "Usage:",
+    `  jimeng token ${action} --token <token> [--token <token> ...] [options]`,
+    "",
+    "Options:",
+    "  --token <token>          Token, can be repeated",
+    "  --token-file <path>      Read tokens from file (one per line, # for comments)",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenToggle(action: "enable" | "disable"): string {
+  return [
+    "Usage:",
+    `  jimeng token ${action} --token <token> [options]`,
+    "",
+    "Options:",
+    "  --token <token>          Required, a single token",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenPoolAction(action: "pool-check" | "pool-reload"): string {
+  return [
+    "Usage:",
+    `  jimeng token ${action} [options]`,
+    "",
+    "Options:",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenPool(): string {
+  return [
+    "Usage:",
+    "  jimeng token pool [options]",
+    "",
+    "Options:",
+    "  --json                   Output raw JSON",
+    "  --base-url <url>         API base URL, default http://127.0.0.1:5100",
+    "  --help                   Show help",
+  ].join("\n");
+}
+
+function usageTokenRoot(): string {
+  return [
+    "Usage:",
+    "  jimeng token <subcommand> [options]",
+    "",
+    "Subcommands:",
+    "  list                     List token pool entries",
+    "  check                    Validate tokens via /token/check",
+    "  points                   Query token points (fallback to server token-pool)",
+    "  receive                  Receive token credits (fallback to server token-pool)",
+    "  add                      Add token(s) into token-pool",
+    "  remove                   Remove token(s) from token-pool",
+    "  enable                   Enable one token in token-pool",
+    "  disable                  Disable one token in token-pool",
+    "  pool                     Show token-pool summary and entries",
+    "  pool-check               Trigger token-pool health check",
+    "  pool-reload              Reload token-pool from disk",
+    "",
+    "Run `jimeng token <subcommand> --help` for details.",
   ].join("\n");
 }
 
@@ -325,52 +417,80 @@ async function downloadImages(urls: string[], outputDir: string, prefix: string)
   return saved;
 }
 
+async function readTokensFromFile(filePathArg: string): Promise<string[]> {
+  const filePath = path.resolve(filePathArg);
+  if (!(await pathExists(filePath))) {
+    fail(`Token file not found: ${filePath}`);
+  }
+  return (await readFile(filePath, "utf8"))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+async function collectTokensFromArgs(
+  args: Record<string, unknown>,
+  usage: string,
+  required = false
+): Promise<string[]> {
+  const tokens = [...toStringList(args.token)];
+  const tokenFile = getSingleString(args, "token-file");
+  if (tokenFile) {
+    tokens.push(...(await readTokensFromFile(tokenFile)));
+  }
+  const deduped = Array.from(new Set(tokens));
+  if (required && deduped.length === 0) {
+    fail(`No tokens provided.\n\n${usage}`);
+  }
+  return deduped;
+}
+
+function buildAuthorizationForTokens(tokens: string[]): Record<string, string> {
+  if (tokens.length === 0) return {};
+  return { Authorization: `Bearer ${tokens.join(",")}` };
+}
+
+function formatUnixMs(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "-";
+  return new Date(value).toISOString();
+}
+
+function printTokenEntriesTable(items: unknown[]): void {
+  if (items.length === 0) {
+    console.log("(empty)");
+    return;
+  }
+  console.log("token\tenabled\tlive\tlastCredit\tlastCheckedAt\tfailures");
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as JsonRecord;
+    const token = typeof entry.token === "string" ? entry.token : "-";
+    const enabled = typeof entry.enabled === "boolean" ? String(entry.enabled) : "-";
+    const live = typeof entry.live === "boolean" ? String(entry.live) : "-";
+    const lastCredit = typeof entry.lastCredit === "number" ? String(entry.lastCredit) : "-";
+    const lastCheckedAt = formatUnixMs(entry.lastCheckedAt);
+    const failures =
+      typeof entry.consecutiveFailures === "number" ? String(entry.consecutiveFailures) : "-";
+    console.log(`${token}\t${enabled}\t${live}\t${lastCredit}\t${lastCheckedAt}\t${failures}`);
+  }
+}
+
 async function handleTokenCheck(argv: string[]): Promise<void> {
   const args = minimist(argv, {
     string: ["token", "token-file", "base-url"],
     boolean: ["help"],
   });
-
   if (args.help) {
     console.log(usageTokenCheck());
     return;
   }
 
   const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
-  const fromArgs = toStringList(args.token);
-  const fromEnv = (process.env.JIMENG_TOKENS || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const tokens = [...fromArgs];
-
-  const tokenFile = getSingleString(args, "token-file");
-  if (tokenFile) {
-    const filePath = path.resolve(tokenFile);
-    if (!(await pathExists(filePath))) {
-      fail(`Token file not found: ${filePath}`);
-    }
-    const lines = (await readFile(filePath, "utf8")).split(/\r?\n/);
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return;
-      tokens.push(trimmed);
-    });
-  }
-
-  if (tokens.length === 0) {
-    tokens.push(...fromEnv);
-  }
-
-  if (tokens.length === 0) {
-    fail(`No tokens provided.\n\n${usageTokenCheck()}`);
-  }
-
+  const tokens = await collectTokensFromArgs(args, usageTokenCheck(), true);
   console.log(`Checking ${tokens.length} token(s) against ${baseUrl}/token/check`);
 
   let invalid = 0;
   let requestErrors = 0;
-
   for (const token of tokens) {
     try {
       const { payload } = await requestJson(`${baseUrl}/token/check`, {
@@ -381,26 +501,149 @@ async function handleTokenCheck(argv: string[]): Promise<void> {
       const normalized = unwrapBody(payload);
       const live =
         normalized && typeof normalized === "object" ? (normalized as JsonRecord).live : undefined;
-      if (live === true) {
-        console.log(`[OK]   ${maskToken(token)} live=true`);
-      } else {
+      if (live === true) console.log(`[OK]   ${maskToken(token)} live=true`);
+      else {
         invalid += 1;
         console.log(`[FAIL] ${maskToken(token)} live=false`);
       }
     } catch (error) {
       requestErrors += 1;
-      console.log(
-        `[ERROR] ${maskToken(token)} ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      console.log(`[ERROR] ${maskToken(token)} ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-
   console.log(`Summary: total=${tokens.length} invalid=${invalid} request_errors=${requestErrors}`);
-
   if (requestErrors > 0) process.exit(3);
   if (invalid > 0) process.exit(2);
+}
+
+async function handleTokenList(argv: string[]): Promise<void> {
+  const args = minimist(argv, {
+    string: ["base-url"],
+    boolean: ["help", "json"],
+  });
+  if (args.help) {
+    console.log(usageTokenList());
+    return;
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const { payload } = await requestJson(`${baseUrl}/token/pool`, { method: "GET" });
+  const normalized = unwrapBody(payload);
+  if (args.json) {
+    console.log(JSON.stringify(normalized, null, 2));
+    return;
+  }
+  const body = normalized && typeof normalized === "object" ? (normalized as JsonRecord) : {};
+  const summary = body.summary;
+  if (summary && typeof summary === "object") {
+    console.log("Summary:");
+    console.log(JSON.stringify(summary, null, 2));
+  }
+  const items = Array.isArray(body.items) ? body.items : [];
+  console.log("Entries:");
+  printTokenEntriesTable(items);
+}
+
+async function handleTokenPointsOrReceive(
+  argv: string[],
+  action: "points" | "receive"
+): Promise<void> {
+  const args = minimist(argv, {
+    string: ["token", "token-file", "base-url"],
+    boolean: ["help"],
+  });
+  if (args.help) {
+    console.log(usageTokenAction(action));
+    return;
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const tokens = await collectTokensFromArgs(args, usageTokenAction(action), false);
+  const { payload } = await requestJson(`${baseUrl}/token/${action}`, {
+    method: "POST",
+    headers: buildAuthorizationForTokens(tokens),
+  });
+  console.log(JSON.stringify(unwrapBody(payload), null, 2));
+}
+
+async function handleTokenAddOrRemove(argv: string[], action: "add" | "remove"): Promise<void> {
+  const args = minimist(argv, {
+    string: ["token", "token-file", "base-url"],
+    boolean: ["help"],
+  });
+  if (args.help) {
+    console.log(usageTokenModify(action));
+    return;
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const tokens = await collectTokensFromArgs(args, usageTokenModify(action), true);
+  const { payload } = await requestJson(`${baseUrl}/token/pool/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tokens }),
+  });
+  console.log(JSON.stringify(unwrapBody(payload), null, 2));
+}
+
+async function handleTokenEnableOrDisable(argv: string[], action: "enable" | "disable"): Promise<void> {
+  const args = minimist(argv, {
+    string: ["token", "base-url"],
+    boolean: ["help"],
+  });
+  if (args.help) {
+    console.log(usageTokenToggle(action));
+    return;
+  }
+  const token = getSingleString(args, "token");
+  if (!token) {
+    fail(`Missing required --token.\n\n${usageTokenToggle(action)}`);
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const { payload } = await requestJson(`${baseUrl}/token/pool/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  console.log(JSON.stringify(unwrapBody(payload), null, 2));
+}
+
+async function handleTokenPool(argv: string[]): Promise<void> {
+  const args = minimist(argv, {
+    string: ["base-url"],
+    boolean: ["help", "json"],
+  });
+  if (args.help) {
+    console.log(usageTokenPool());
+    return;
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const { payload } = await requestJson(`${baseUrl}/token/pool`, { method: "GET" });
+  const normalized = unwrapBody(payload);
+  if (args.json) {
+    console.log(JSON.stringify(normalized, null, 2));
+    return;
+  }
+  const body = normalized && typeof normalized === "object" ? (normalized as JsonRecord) : {};
+  console.log("Summary:");
+  console.log(JSON.stringify(body.summary ?? {}, null, 2));
+  console.log("Entries:");
+  printTokenEntriesTable(Array.isArray(body.items) ? body.items : []);
+}
+
+async function handleTokenPoolCheckOrReload(
+  argv: string[],
+  action: "pool-check" | "pool-reload"
+): Promise<void> {
+  const args = minimist(argv, {
+    string: ["base-url"],
+    boolean: ["help"],
+  });
+  if (args.help) {
+    console.log(usageTokenPoolAction(action));
+    return;
+  }
+  const baseUrl = sanitizeBaseUrl(getSingleString(args, "base-url"));
+  const endpoint = action === "pool-check" ? "/token/pool/check" : "/token/pool/reload";
+  const { payload } = await requestJson(`${baseUrl}${endpoint}`, { method: "POST" });
+  console.log(JSON.stringify(unwrapBody(payload), null, 2));
 }
 
 async function handleModelsList(argv: string[]): Promise<void> {
@@ -765,9 +1008,57 @@ async function run(): Promise<void> {
     return;
   }
 
-  if (command === "token" && subcommand === "check") {
-    await handleTokenCheck(rest);
-    return;
+  if (command === "token") {
+    const tokenArgv = process.argv.slice(3);
+    if (!subcommand || subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
+      console.log(usageTokenRoot());
+      return;
+    }
+    if (subcommand === "list") {
+      await handleTokenList(tokenArgv);
+      return;
+    }
+    if (subcommand === "check") {
+      await handleTokenCheck(tokenArgv);
+      return;
+    }
+    if (subcommand === "points") {
+      await handleTokenPointsOrReceive(tokenArgv, "points");
+      return;
+    }
+    if (subcommand === "receive") {
+      await handleTokenPointsOrReceive(tokenArgv, "receive");
+      return;
+    }
+    if (subcommand === "add") {
+      await handleTokenAddOrRemove(tokenArgv, "add");
+      return;
+    }
+    if (subcommand === "remove") {
+      await handleTokenAddOrRemove(tokenArgv, "remove");
+      return;
+    }
+    if (subcommand === "enable") {
+      await handleTokenEnableOrDisable(tokenArgv, "enable");
+      return;
+    }
+    if (subcommand === "disable") {
+      await handleTokenEnableOrDisable(tokenArgv, "disable");
+      return;
+    }
+    if (subcommand === "pool") {
+      await handleTokenPool(tokenArgv);
+      return;
+    }
+    if (subcommand === "pool-check") {
+      await handleTokenPoolCheckOrReload(tokenArgv, "pool-check");
+      return;
+    }
+    if (subcommand === "pool-reload") {
+      await handleTokenPoolCheckOrReload(tokenArgv, "pool-reload");
+      return;
+    }
+    fail(`Unknown token subcommand: ${subcommand}\n\n${usageTokenRoot()}`);
   }
 
   if (command === "models" && subcommand === "list") {

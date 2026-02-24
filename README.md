@@ -138,8 +138,21 @@ jimeng models list --json
 # Start service
 jimeng serve
 
+# List token pool
+jimeng token list
+
 # Check token(s)
 jimeng token check --token YOUR_TOKEN
+
+# Add/remove/enable/disable token(s)
+jimeng token add --token YOUR_TOKEN
+jimeng token remove --token YOUR_TOKEN
+jimeng token enable --token YOUR_TOKEN
+jimeng token disable --token YOUR_TOKEN
+
+# Points/receive (without --token, server token-pool is used)
+jimeng token points
+jimeng token receive
 
 # Text to image
 jimeng image generate \

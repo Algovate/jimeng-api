@@ -140,8 +140,21 @@ jimeng models list --json
 # 启动服务
 jimeng serve
 
+# 查看 token 池
+jimeng token list
+
 # 检测 token
 jimeng token check --token YOUR_TOKEN
+
+# 添加/移除/启用/禁用 token
+jimeng token add --token YOUR_TOKEN
+jimeng token remove --token YOUR_TOKEN
+jimeng token enable --token YOUR_TOKEN
+jimeng token disable --token YOUR_TOKEN
+
+# 查询积分/领取积分（不传 --token 时使用服务端 token-pool）
+jimeng token points
+jimeng token receive
 
 # 文生图
 jimeng image generate \
