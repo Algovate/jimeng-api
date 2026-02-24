@@ -286,13 +286,66 @@ function detectImageMime(filePath: string): string {
   }
 }
 
-function detectImageExtension(contentType: string | null): string {
-  if (!contentType) return "bin";
+function detectImageExtension(contentType: string | null): string | null {
+  if (!contentType) return null;
   if (contentType.includes("image/jpeg")) return "jpg";
   if (contentType.includes("image/png")) return "png";
   if (contentType.includes("image/webp")) return "webp";
   if (contentType.includes("image/gif")) return "gif";
-  return "bin";
+  return null;
+}
+
+function detectImageExtensionFromUrl(fileUrl: string): string | null {
+  try {
+    const pathname = new URL(fileUrl).pathname.toLowerCase();
+    if (pathname.endsWith(".jpg") || pathname.endsWith(".jpeg")) return "jpg";
+    if (pathname.endsWith(".png")) return "png";
+    if (pathname.endsWith(".webp")) return "webp";
+    if (pathname.endsWith(".gif")) return "gif";
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function detectImageExtensionFromBuffer(buffer: Buffer): string | null {
+  if (buffer.length >= 8) {
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    ) {
+      return "png";
+    }
+  }
+  if (buffer.length >= 3) {
+    // JPEG signature: FF D8 FF
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return "jpg";
+    }
+  }
+  if (buffer.length >= 12) {
+    // WebP signature: RIFF....WEBP
+    if (
+      buffer.toString("ascii", 0, 4) === "RIFF" &&
+      buffer.toString("ascii", 8, 12) === "WEBP"
+    ) {
+      return "webp";
+    }
+  }
+  if (buffer.length >= 6) {
+    const sig = buffer.toString("ascii", 0, 6);
+    if (sig === "GIF87a" || sig === "GIF89a") {
+      return "gif";
+    }
+  }
+  return null;
 }
 
 function detectVideoExtension(contentType: string | null, fileUrl: string): string {
@@ -405,11 +458,14 @@ async function downloadImages(urls: string[], outputDir: string, prefix: string)
 
   for (let i = 0; i < urls.length; i += 1) {
     const imageUrl = urls[i];
-    const probe = await fetch(imageUrl, { method: "HEAD" });
-    const ext = detectImageExtension(probe.headers.get("content-type"));
+    const { buffer, contentType } = await downloadBinary(imageUrl);
+    const ext =
+      detectImageExtension(contentType) ??
+      detectImageExtensionFromBuffer(buffer) ??
+      detectImageExtensionFromUrl(imageUrl) ??
+      "png";
     const fileName = `${prefix}-${timestamp}-${String(i + 1).padStart(2, "0")}.${ext}`;
     const filePath = path.join(dir, fileName);
-    const { buffer } = await downloadBinary(imageUrl);
     await writeFile(filePath, buffer);
     saved.push(filePath);
   }

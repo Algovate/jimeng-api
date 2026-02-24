@@ -49,6 +49,7 @@ export default {
             request
                 .validate('body.token', _.isString)
             const live = await getTokenLiveStatus(request.body.token);
+            await tokenPool.syncTokenCheckResult(request.body.token, live);
             return {
                 live
             }

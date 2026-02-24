@@ -198,6 +198,28 @@ class TokenPool {
     return true;
   }
 
+  async syncTokenCheckResult(token: string, live: boolean): Promise<boolean> {
+    if (!this.enabled) return false;
+    const item = this.entryMap.get(token);
+    if (!item) return false;
+    item.lastCheckedAt = Date.now();
+    item.live = live;
+    if (live) {
+      // Manual token check confirmed token is valid; recover from auto-disable.
+      item.enabled = true;
+      item.consecutiveFailures = 0;
+      item.lastError = undefined;
+    } else {
+      item.consecutiveFailures++;
+      item.lastError = "token_not_live";
+      if (this.autoDisableEnabled && item.consecutiveFailures >= this.autoDisableFailures) {
+        item.enabled = false;
+      }
+    }
+    await this.persistToDisk();
+    return true;
+  }
+
   async reloadFromDisk(): Promise<void> {
     await this.loadFromDisk();
   }
