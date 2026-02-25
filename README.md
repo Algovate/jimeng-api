@@ -201,7 +201,7 @@ jimeng video generate \
 jimeng video generate \
   --mode omni_reference \
   --model jimeng-video-seedance-2.0-fast \
-  --region us \
+  --region cn \
   --prompt "Use @image_file_1 for character and @video_file_1 for motion" \
   --image-file ./character.png \
   --video-file ./motion.mp4
